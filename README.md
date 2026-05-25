@@ -52,8 +52,8 @@ pos-factura-electronica/
 
 ## Requisitos
 
-- Java 17+
-- Maven 3.8+
+- Java 11+
+- Maven 2.7+
 - IntelliJ IDEA (Community o Ultimate)
 
 ---
