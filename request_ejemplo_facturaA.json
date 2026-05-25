@@ -1,0 +1,45 @@
+{
+  "cliente": {
+    "documento_tipo": "CUIT",
+    "documento_nro": "30712345678",
+    "razon_social": "Empresa Cliente S.A.",
+    "email": "compras@empresa.com",
+    "domicilio": "Av. Libertador 500, CABA",
+    "provincia": "1",
+    "condicion_iva": "RI",
+    "envia_por_mail": "S"
+  },
+  "comprobante": {
+    "tipo": "FACTURA A",
+    "fecha": "26/04/2026",
+    "vencimiento": "26/05/2026",
+    "moneda": "PES",
+    "cotizacion": "1",
+    "operacion": "V",
+    "rubro": "Venta de mercadería",
+    "bonificacion": 0,
+    "detalle": [
+      {
+        "cantidad": 10,
+        "afecta_stock": "S",
+        "bonificacion_porcentaje": 5,
+        "leyenda": "",
+        "producto": {
+          "descripcion": "Monitor 24 pulgadas Full HD",
+          "codigo": "MON-024",
+          "precio_unitario_sin_iva": 80000.00,
+          "alicuota": 21,
+          "unidad_medida": "7",
+          "unidad_bulto": "1",
+          "lista_precios": "LISTA MAYORISTA",
+          "impuestos_internos_alicuota": 0
+        }
+      }
+    ],
+    "pagos": {
+      "formas_pago": [
+        { "descripcion": "Transferencia bancaria", "importe": 912000.00 }
+      ]
+    }
+  }
+}

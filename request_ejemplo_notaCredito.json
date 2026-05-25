@@ -1,0 +1,49 @@
+{
+  "cliente": {
+    "documento_tipo": "DNI",
+    "documento_nro": "30111222",
+    "razon_social": "Juan Pérez",
+    "email": "juan@email.com",
+    "domicilio": "Av. Colón 123, Córdoba",
+    "provincia": "13",
+    "condicion_iva": "CF",
+    "envia_por_mail": "S"
+  },
+  "comprobante": {
+    "tipo": "NOTA DE CREDITO B",
+    "fecha": "26/04/2026",
+    "vencimiento": "26/04/2026",
+    "moneda": "PES",
+    "cotizacion": "1",
+    "operacion": "V",
+    "rubro": "Devolución de mercadería",
+    "bonificacion": 0,
+    "detalle": [
+      {
+        "cantidad": 1,
+        "afecta_stock": "S",
+        "bonificacion_porcentaje": 0,
+        "leyenda": "Devolución por producto defectuoso",
+        "producto": {
+          "descripcion": "Auriculares Bluetooth",
+          "codigo": "AUR-001",
+          "precio_unitario_sin_iva": 10000.00,
+          "alicuota": 21,
+          "unidad_medida": "7",
+          "unidad_bulto": "1",
+          "lista_precios": "LISTA GENERAL",
+          "impuestos_internos_alicuota": 0
+        }
+      }
+    ],
+    "comprobantes_asociados": [
+      {
+        "tipo_comprobante": "FACTURA B",
+        "punto_venta": "1",
+        "numero": "00000001",
+        "comprobante_fecha": "24/04/2026",
+        "cuit": 20123456789
+      }
+    ]
+  }
+}
