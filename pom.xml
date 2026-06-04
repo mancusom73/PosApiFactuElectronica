@@ -13,7 +13,7 @@
 
     <groupId>com.pos</groupId>
     <artifactId>factura-electronica</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <name>pos-factura-electronica</name>
     <description>POS - API REST Factura Electronica Argentina</description>
 
@@ -43,15 +43,12 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
-        <dependency>
-            <groupId>mysql</groupId>
-            <artifactId>mysql-connector-java</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-core</artifactId>
-        </dependency>
+  <!-- MYSQL 5.1 DRIVER -->
+		<dependency>
+			<groupId>mysql</groupId>
+			<artifactId>mysql-connector-java</artifactId>
+			<version>5.1.49</version>
+		</dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

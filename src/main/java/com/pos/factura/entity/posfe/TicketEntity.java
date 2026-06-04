@@ -1,5 +1,6 @@
-package com.pos.factura.entity;
+package com.pos.factura.entity.posfe;
 
+import com.pos.factura.entity.dbtpviv.ClienteEntity;
 import javax.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -21,7 +22,7 @@ import java.util.List;
 @Table(name = "tickets",
         indexes = {
             @Index(name = "idx_ticket_fecha", columnList = "fecha"),
-            @Index(name = "idx_ticket_cliente", columnList = "cliente_id"),
+     //       @Index(name = "idx_ticket_cliente", columnList = "cliente_id"),
             @Index(name = "idx_ticket_estado", columnList = "estado")
         })
 public class TicketEntity {
@@ -44,8 +45,8 @@ public class TicketEntity {
     private LocalDate fechaVencimiento;
 
     // Relación N:1 — el ticket pertenece a un cliente
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "cliente_id", nullable = false)
+  //  @ManyToOne(fetch = FetchType.LAZY)
+    //@JoinColumn(name = "cliente_id", nullable = false)
     private ClienteEntity cliente;
 
     /**

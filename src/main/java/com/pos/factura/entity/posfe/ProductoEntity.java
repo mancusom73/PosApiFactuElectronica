@@ -1,4 +1,4 @@
-package com.pos.factura.entity;
+package com.pos.factura.entity.posfe;
 
 import javax.persistence.*;
 import lombok.Getter;

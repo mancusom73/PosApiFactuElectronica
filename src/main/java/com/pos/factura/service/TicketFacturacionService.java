@@ -2,10 +2,12 @@ package com.pos.factura.service;
 
 import com.pos.factura.dto.FacturaResponse;
 import com.pos.factura.dto.SolicitudFacturaRequest;
-import com.pos.factura.entity.TicketEntity;
-import com.pos.factura.entity.TicketEntity.EstadoTicket;
+import com.pos.factura.entity.posfe.TicketEntity;
+import com.pos.factura.entity.posfe.TicketEntity.EstadoTicket;
+import com.pos.factura.entity.dbtpviv.ClienteEntity;
 import com.pos.factura.mapper.TicketMapper;
 import com.pos.factura.repository.TicketRepository;
+import com.pos.factura.repository.dbtpviv.ClienteRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -37,13 +39,16 @@ public class TicketFacturacionService {
     private final TicketRepository ticketRepository;
     private final TicketMapper ticketMapper;
     private final FacturaService facturaService;
+    private final ClienteRepository clienteRepository;
 
     public TicketFacturacionService(TicketRepository ticketRepository,
                                     TicketMapper ticketMapper,
-                                    FacturaService facturaService) {
-        this.ticketRepository = ticketRepository;
-        this.ticketMapper     = ticketMapper;
-        this.facturaService   = facturaService;
+                                    FacturaService facturaService,
+                                    ClienteRepository clienteRepository) {
+        this.ticketRepository  = ticketRepository;
+        this.ticketMapper      = ticketMapper;
+        this.facturaService    = facturaService;
+        this.clienteRepository = clienteRepository;
     }
 
     // =========================================================================
@@ -119,13 +124,19 @@ public class TicketFacturacionService {
         validarEstadoTicket(ticket);
 
         try {
-            // 3. Mapear entidad → DTO del servicio de facturación
+            // 3. Cargar cliente desde DBTPVIV por clienteId del ticket
+        /*    ClienteEntity cliente = clienteRepository.findById(ticket.getClienteId())
+                    .orElseThrow(() -> new NoSuchElementException(
+                            "No se encontró el cliente con ID: " + ticket.getClienteId()
+                            + " en DBTPVIV"));*/
+
+            // 4. Mapear entidad → DTO del servicio de facturación
             SolicitudFacturaRequest solicitud = ticketMapper.toSolicitud(ticket);
 
             log.debug("Ticket {} mapeado: tipo={}, cliente={}, items={}",
                     ticket.getNumeroTicket(),
                     ticket.getTipoComprobante(),
-                    ticket.getCliente().getRazonSocial(),
+                    ticket.getCliente().getNombre(),
                     ticket.getItems().size());
 
             // 4. Delegar al servicio de facturación (calcula totales, valida, llama a AFIP)

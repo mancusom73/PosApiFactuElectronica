@@ -1,11 +1,11 @@
 package com.pos.factura.mapper;
 
 import com.pos.factura.dto.SolicitudFacturaRequest;
-import com.pos.factura.entity.ClienteEntity;
-import com.pos.factura.entity.ProductoEntity;
-import com.pos.factura.entity.TicketEntity;
-import com.pos.factura.entity.TicketItemEntity;
-import com.pos.factura.entity.TicketPagoEntity;
+import com.pos.factura.entity.posfe.ProductoEntity;
+import com.pos.factura.entity.posfe.TicketEntity;
+import com.pos.factura.entity.posfe.TicketItemEntity;
+import com.pos.factura.entity.posfe.TicketPagoEntity;
+import com.pos.factura.entity.dbtpviv.ClienteEntity;
 import com.pos.factura.model.*;
 import org.springframework.stereotype.Component;
 
@@ -26,8 +26,8 @@ public class TicketMapper {
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     /**
-     * Convierte el ticket completo (con cliente, ítems y pagos) en el DTO
-     * que recibe el servicio de facturación.
+     * @param ticket  Ticket leído de posFE (con ítems y pagos)
+     * @param cliente Cliente leído de DBTPVIV por clienteId
      */
     public SolicitudFacturaRequest toSolicitud(TicketEntity ticket) {
         SolicitudFacturaRequest solicitud = new SolicitudFacturaRequest();
@@ -36,22 +36,17 @@ public class TicketMapper {
         return solicitud;
     }
 
-    // =========================================================================
-    // Cliente
-    // =========================================================================
-
     private Cliente mapCliente(TicketEntity ticket) {
-        ClienteEntity ce = ticket.getCliente();
-
         Cliente cliente = new Cliente();
-        cliente.setDocumentoTipo(ce.getDocumentoTipo());
-        cliente.setDocumentoNro(ce.getDocumentoNro());
-        cliente.setRazonSocial(ce.getRazonSocial());
-        cliente.setEmail(ce.getEmail());
+        ClienteEntity ce = ticket.getCliente();
+        cliente.setDocumentoTipo(ce.getCodDocumento());
+        cliente.setDocumentoNro(ce.getNroDocumento());
+        cliente.setRazonSocial(ce.getNombre());
+        //cliente.setEmail(ce.getEmail());
         cliente.setDomicilio(ce.getDomicilio());
         cliente.setProvincia(ce.getProvincia() != null ? ce.getProvincia() : "13");
-        cliente.setCondicionIva(ce.getCondicionIva());
-        cliente.setEnviaPorMail(ce.getEnviaPorMail() != null ? ce.getEnviaPorMail() : "N");
+        cliente.setCondicionIva(ce.getCondIva());
+        //cliente.setEnviaPorMail(ce.getEnviaPorMail() != null ? ce.getEnviaPorMail() : "N");
         return cliente;
     }
 

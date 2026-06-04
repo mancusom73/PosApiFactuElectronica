@@ -1,6 +1,6 @@
 package com.pos.factura.repository;
 
-import com.pos.factura.entity.ProductoEntity;
+import com.pos.factura.entity.posfe.ProductoEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
