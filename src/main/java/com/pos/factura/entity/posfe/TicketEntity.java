@@ -1,6 +1,5 @@
 package com.pos.factura.entity.posfe;
 
-import com.pos.factura.entity.dbtpviv.ClienteEntity;
 import javax.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -44,15 +43,16 @@ public class TicketEntity {
     @Column(name = "fecha_vencimiento")
     private LocalDate fechaVencimiento;
 
-    // Relación N:1 — el ticket pertenece a un cliente
-  //  @ManyToOne(fetch = FetchType.LAZY)
-    //@JoinColumn(name = "cliente_id", nullable = false)
-    private ClienteEntity cliente;
-
     /**
-     * Tipo de comprobante a emitir:
-     * FACTURA_A, FACTURA_B, FACTURA_C, NOTA_CREDITO_B, etc.
+     * ID del cliente en la tabla clientes de DBTPVIV.
+     * No se usa @ManyToOne porque cliente y ticket están en bases de datos distintas:
+     * tickets → posFE,  clientes → DBTPVIV.
+     * Hibernate de posFE no conoce ClienteEntity y lanza AnnotationException.
+     * El cliente se carga en TicketFacturacionService usando ClienteRepository (DBTPVIV).
      */
+    @Column(name = "codCliente", nullable = false)
+    private Long codCliente;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "tipo_comprobante", nullable = false, length = 30)
     private TipoComprobante tipoComprobante;

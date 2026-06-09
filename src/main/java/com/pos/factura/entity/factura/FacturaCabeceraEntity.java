@@ -116,7 +116,7 @@ public class FacturaCabeceraEntity {
     @Column(name = "cliente_condicion_iva", length = 5)
     private String clienteCondicionIva;
 
-    @Column(name = "cliente_envia_por_mail", length = 1)
+    @Column(name = "cliente_envia_por_mail", columnDefinition = "CHAR(1)")
     private String clienteEnviaPorMail;
 
     // ── Respuesta de AFIP ────────────────────────────────────────────────────

@@ -19,7 +19,6 @@ public interface TicketRepository extends JpaRepository<TicketEntity, Long> {
      * Nota: text blocks (""") son Java 15+, se usan String normales para Java 11.
      */
     @Query("SELECT t FROM TicketEntity t " +
-           "LEFT JOIN FETCH t.cliente " +
            "LEFT JOIN FETCH t.items i " +
            "LEFT JOIN FETCH i.producto " +
            "LEFT JOIN FETCH t.pagos " +
@@ -30,7 +29,6 @@ public interface TicketRepository extends JpaRepository<TicketEntity, Long> {
      * Busca por ID con todas las relaciones cargadas.
      */
     @Query("SELECT t FROM TicketEntity t " +
-           "LEFT JOIN FETCH t.cliente " +
            "LEFT JOIN FETCH t.items i " +
            "LEFT JOIN FETCH i.producto " +
            "LEFT JOIN FETCH t.pagos " +
@@ -41,7 +39,6 @@ public interface TicketRepository extends JpaRepository<TicketEntity, Long> {
      * Tickets pendientes de facturación (para reintento o procesamiento batch).
      */
     @Query("SELECT t FROM TicketEntity t " +
-           "LEFT JOIN FETCH t.cliente " +
            "LEFT JOIN FETCH t.items i " +
            "LEFT JOIN FETCH i.producto " +
            "LEFT JOIN FETCH t.pagos " +
@@ -49,17 +46,9 @@ public interface TicketRepository extends JpaRepository<TicketEntity, Long> {
            "ORDER BY t.fecha ASC, t.fechaAlta ASC")
     List<TicketEntity> findPendientes();
 
-    /**
-     * Tickets de un cliente en un rango de fechas.
-     */
-    @Query("SELECT t FROM TicketEntity t " +
-           "WHERE t.cliente.id = :clienteId " +
-           "AND t.fecha BETWEEN :desde AND :hasta " +
-           "ORDER BY t.fecha DESC")
-    List<TicketEntity> findByClienteYFecha(
-            @Param("clienteId") Long clienteId,
-            @Param("desde") LocalDate desde,
-            @Param("hasta") LocalDate hasta);
+    // Filtra por codCliente (Long) — sin JOIN JPA cross-database
+    List<TicketEntity> findByCodClienteAndFechaBetweenOrderByFechaDesc(
+            Long codCliente, LocalDate desde, LocalDate hasta);
 
     /**
      * Tickets con error para auditoría.

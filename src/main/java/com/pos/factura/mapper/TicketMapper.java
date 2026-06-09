@@ -14,89 +14,105 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Convierte un TicketEntity (leído de MySQL) en una SolicitudFacturaRequest
- * lista para ser procesada por el FacturaService.
+ * Convierte TicketEntity + ClienteEntity en SolicitudFacturaRequest.
  *
- * Flujo:
- *   MySQL → TicketEntity → TicketMapper → SolicitudFacturaRequest → FacturaService → API AFIP
+ * ClienteEntity usa los campos reales de DBTPVIV:
+ *   COD_CLIENTE, COD_DOCUMENTO, NRO_DOCUMENTO, NOMBRE, DOMICILIO, PROVINCIA, COND_IVA
  */
 @Component
 public class TicketMapper {
 
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-    /**
-     * @param ticket  Ticket leído de posFE (con ítems y pagos)
-     * @param cliente Cliente leído de DBTPVIV por clienteId
-     */
-    public SolicitudFacturaRequest toSolicitud(TicketEntity ticket) {
+    public SolicitudFacturaRequest toSolicitud(TicketEntity ticket, ClienteEntity cliente) {
         SolicitudFacturaRequest solicitud = new SolicitudFacturaRequest();
-        solicitud.setCliente(mapCliente(ticket));
+        solicitud.setCliente(mapCliente(cliente));
         solicitud.setComprobante(mapComprobante(ticket));
         return solicitud;
     }
 
-    private Cliente mapCliente(TicketEntity ticket) {
+    private Cliente mapCliente(ClienteEntity ce) {
         Cliente cliente = new Cliente();
-        ClienteEntity ce = ticket.getCliente();
-        cliente.setDocumentoTipo(ce.getCodDocumento());
+        cliente.setDocumentoTipo(mapTipoDocumento(ce.getCodDocumento()));
         cliente.setDocumentoNro(ce.getNroDocumento());
         cliente.setRazonSocial(ce.getNombre());
-        //cliente.setEmail(ce.getEmail());
         cliente.setDomicilio(ce.getDomicilio());
-        cliente.setProvincia(ce.getProvincia() != null ? ce.getProvincia() : "13");
-        cliente.setCondicionIva(ce.getCondIva());
-        //cliente.setEnviaPorMail(ce.getEnviaPorMail() != null ? ce.getEnviaPorMail() : "N");
+
+        // PROVINCIA: viene como descripción (ej "CORDOBA"), mapear a código AFIP
+        cliente.setProvincia(mapProvincia(ce.getProvincia()));
+
+        // COND_IVA: mapear código numérico → código AFIP (CF, RI, MO)
+        cliente.setCondicionIva(mapCondicionIva(ce.getCondIva()));
+
+        // Email y envia_por_mail no existen en DBTPVIV — valores por defecto
+        cliente.setEmail(null);
+        cliente.setEnviaPorMail("N");
+
         return cliente;
     }
 
-    // =========================================================================
-    // Comprobante
-    // =========================================================================
+    /**
+     * Mapea el código de documento de DBTPVIV al tipo que espera AFIP.
+     * Ajustar según los valores reales de la columna COD_DOCUMENTO en tu BD.
+     */
+    private String mapTipoDocumento(String codDocumento) {
+        if (codDocumento == null) return "DNI";
+        switch (codDocumento.trim().toUpperCase()) {
+            case "D": return "DNI";
+            case "C": return "CUIT";
+            case "L": return "CUIL";
+            case "P": return "PASAPORTE";
+            default:  return "DNI";
+        }
+    }
+
+    /** Ajustar según los valores reales de COND_IVA en tu BD */
+    private String mapCondicionIva(String cond) {
+        if (cond == null) return "CF";
+        switch (cond.trim()) {
+            case "1": return "RI";
+            case "4": return "CF";
+            case "6": return "MO";
+            default:  return "CF";
+        }
+    }
+
+    /** Ajustar según los valores reales de PROVINCIA en tu BD */
+    private String mapProvincia(String provincia) {
+        if (provincia == null) return "13";
+        switch (provincia.trim().toUpperCase()) {
+            case "BUENOS AIRES":  return "1";
+            case "CABA":          return "2";
+            case "CORDOBA":       return "13";
+            case "SANTA FE":      return "21";
+            case "MENDOZA":       return "10";
+            default:              return "13";
+        }
+    }
 
     private Comprobante mapComprobante(TicketEntity ticket) {
         Comprobante comprobante = new Comprobante();
-
-        // Tipo de comprobante: usar descripción AFIP del enum
         comprobante.setTipo(ticket.getTipoComprobante().getDescripcionAfip());
-
-        // Fecha en formato dd/MM/yyyy
         comprobante.setFecha(ticket.getFecha().format(FMT));
-
-        // Fecha de vencimiento del pago (si existe)
-        if (ticket.getFechaVencimiento() != null) {
-            comprobante.setVencimiento(ticket.getFechaVencimiento().format(FMT));
-        } else {
-            comprobante.setVencimiento(ticket.getFecha().format(FMT));
-        }
-
+        comprobante.setVencimiento(ticket.getFechaVencimiento() != null
+                ? ticket.getFechaVencimiento().format(FMT)
+                : ticket.getFecha().format(FMT));
         comprobante.setMoneda(ticket.getMoneda() != null ? ticket.getMoneda() : "PES");
-        comprobante.setCotizacion(
-                ticket.getCotizacion() != null ? ticket.getCotizacion().toPlainString() : "1");
+        comprobante.setCotizacion(ticket.getCotizacion() != null
+                ? ticket.getCotizacion().toPlainString() : "1");
         comprobante.setOperacion("V");
-        comprobante.setRubro("Venta de mercadería");
-        comprobante.setNumero("0"); // AFIP asigna el próximo número
+        comprobante.setRubro("Venta de mercaderia");
+        comprobante.setNumero("0");
         comprobante.setBonificacion(ticket.getBonificacion());
-
-        // Ítems
         comprobante.setDetalle(mapItems(ticket.getItems()));
-
-        // Formas de pago
         if (ticket.getPagos() != null && !ticket.getPagos().isEmpty()) {
             comprobante.setPagos(mapPagos(ticket.getPagos()));
         }
-
         return comprobante;
     }
 
-    // =========================================================================
-    // Ítems del detalle
-    // =========================================================================
-
     private List<DetalleItem> mapItems(List<TicketItemEntity> items) {
-        return items.stream()
-                .map(this::mapItem)
-                .collect(Collectors.toList());
+        return items.stream().map(this::mapItem).collect(Collectors.toList());
     }
 
     private DetalleItem mapItem(TicketItemEntity ie) {
@@ -111,13 +127,9 @@ public class TicketMapper {
 
     private Producto mapProducto(TicketItemEntity ie) {
         ProductoEntity pe = ie.getProducto();
-
         Producto producto = new Producto();
         producto.setCodigo(pe.getCodigo());
         producto.setDescripcion(pe.getDescripcion());
-
-        // Usar precio histórico del ítem (precio al momento de la venta)
-        // — puede diferir del precio actual en el catálogo
         producto.setPrecioUnitarioSinIva(ie.getPrecioUnitarioSinIva());
         producto.setAlicuota(ie.getAlicuotaIva().doubleValue());
         producto.setUnidadMedida(pe.getUnidadMedida() != null ? pe.getUnidadMedida() : "7");
@@ -126,18 +138,12 @@ public class TicketMapper {
         return producto;
     }
 
-    // =========================================================================
-    // Formas de pago
-    // =========================================================================
-
     private Pagos mapPagos(List<TicketPagoEntity> pagosEntidad) {
         List<Pagos.FormaPago> formas = pagosEntidad.stream()
                 .map(pe -> new Pagos.FormaPago(pe.getDescripcion(), pe.getImporte()))
                 .collect(Collectors.toList());
-
         Pagos pagos = new Pagos();
         pagos.setFormasPago(formas);
-        // El total de pagos se calcula en CalculadorComprobante.calcularTotalPagos()
         return pagos;
     }
 }

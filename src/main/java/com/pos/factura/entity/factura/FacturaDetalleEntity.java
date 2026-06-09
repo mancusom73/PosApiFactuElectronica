@@ -43,7 +43,7 @@ public class FacturaDetalleEntity {
     private BigDecimal cantidad;
 
     /** S = afecta stock, N = no afecta */
-    @Column(name = "afecta_stock", length = 1)
+    @Column(name = "afecta_stock", columnDefinition = "CHAR(1)")
     private String afectaStock;
 
     /** Descuento aplicado a esta línea (0.00 a 100.00) */
