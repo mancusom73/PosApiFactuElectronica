@@ -10,6 +10,13 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Queries con múltiples @OneToMany (items, pagos) se separan para evitar
+ * MultipleBagFetchException de Hibernate. Llamar en secuencia desde el servicio:
+ *   1. findConItemsById / findConItemsByNumeroTicket  → carga items + producto
+ *   2. findConPagosById / findConPagosByNumeroTicket  → carga pagos
+ * Hibernate unifica ambos resultados en la misma instancia cacheada.
+ */
 @Repository
 public interface TicketRepository extends JpaRepository<TicketEntity, Long> {
 
@@ -21,9 +28,17 @@ public interface TicketRepository extends JpaRepository<TicketEntity, Long> {
     @Query("SELECT t FROM TicketEntity t " +
            "LEFT JOIN FETCH t.items i " +
            "LEFT JOIN FETCH i.producto " +
+           "WHERE t.numeroTicket = :numeroTicket")
+    Optional<TicketEntity> findConItemsByNumeroTicket(
+            @Param("numeroTicket") String numeroTicket);
+
+    @Query("SELECT t FROM TicketEntity t " +
            "LEFT JOIN FETCH t.pagos " +
            "WHERE t.numeroTicket = :numeroTicket")
-    Optional<TicketEntity> findByNumeroTicketConDetalle(@Param("numeroTicket") String numeroTicket);
+    Optional<TicketEntity> findConPagosByNumeroTicket(
+            @Param("numeroTicket") String numeroTicket);
+
+    // ── Por ID ────────────────────────────────────────────────────────────────
 
     /**
      * Busca por ID con todas las relaciones cargadas.
@@ -31,20 +46,30 @@ public interface TicketRepository extends JpaRepository<TicketEntity, Long> {
     @Query("SELECT t FROM TicketEntity t " +
            "LEFT JOIN FETCH t.items i " +
            "LEFT JOIN FETCH i.producto " +
+           "WHERE t.id = :id")
+    Optional<TicketEntity> findConDetalleById(@Param("id") Long id);
+
+    @Query("SELECT t FROM TicketEntity t " +
            "LEFT JOIN FETCH t.pagos " +
            "WHERE t.id = :id")
-    Optional<TicketEntity> findByIdConDetalle(@Param("id") Long id);
+    Optional<TicketEntity> findConPagosById(@Param("id") Long id);
 
-    /**
-     * Tickets pendientes de facturación (para reintento o procesamiento batch).
-     */
+    // ── Pendientes ────────────────────────────────────────────────────────────
+
     @Query("SELECT t FROM TicketEntity t " +
            "LEFT JOIN FETCH t.items i " +
            "LEFT JOIN FETCH i.producto " +
+           "WHERE t.estado = 'PENDIENTE' " +
+           "ORDER BY t.fecha ASC, t.fechaAlta ASC")
+    List<TicketEntity> findPendientesConItems();
+
+    @Query("SELECT t FROM TicketEntity t " +
            "LEFT JOIN FETCH t.pagos " +
            "WHERE t.estado = 'PENDIENTE' " +
            "ORDER BY t.fecha ASC, t.fechaAlta ASC")
-    List<TicketEntity> findPendientes();
+    List<TicketEntity> findPendientesConPagos();
+
+    // ── Otros ─────────────────────────────────────────────────────────────────
 
     // Filtra por codCliente (Long) — sin JOIN JPA cross-database
     List<TicketEntity> findByCodClienteAndFechaBetweenOrderByFechaDesc(

@@ -65,7 +65,7 @@ public class FacturaPersistenciaService {
      * @param numeroTicket  Número del ticket del POS (para trazabilidad)
      * @return              ID de la FacturaCabeceraEntity creada
      */
-    @Transactional
+    @Transactional("posfeTransactionManager")
     public Long guardarAntesDeLlamar(ApiFacturaRequest request, String numeroTicket) {
         log.debug("Persistiendo request de factura antes de enviar a AFIP. Ticket: {}", numeroTicket);
 
@@ -106,7 +106,7 @@ public class FacturaPersistenciaService {
      * @param cabeceraId    ID retornado por guardarAntesDeLlamar()
      * @param apiResponse   Respuesta recibida de la API externa
      */
-    @Transactional
+    @Transactional("posfeTransactionManager")
     public void actualizarConRespuesta(Long cabeceraId, ApiFacturaResponse apiResponse) {
         FacturaCabeceraEntity cabecera = cabeceraRepository.findById(cabeceraId)
                 .orElseThrow(() -> new IllegalStateException(
@@ -158,7 +158,7 @@ public class FacturaPersistenciaService {
      * @param cabeceraId        ID retornado por guardarAntesDeLlamar()
      * @param mensajeError      Descripción del error de comunicación
      */
-    @Transactional
+    @Transactional("posfeTransactionManager")
     public void marcarError(Long cabeceraId, String mensajeError) {
         cabeceraRepository.findById(cabeceraId).ifPresent(cabecera -> {
             cabecera.setEstado("ERROR");

@@ -52,7 +52,7 @@ public class TicketItemEntity {
     @Column(name = "leyenda", length = 200)
     private String leyenda = "";
 
-    @Column(name = "afecta_stock", length = 1)
+    @Column(name = "afecta_stock", columnDefinition = "CHAR(1)")
     private String afectaStock = "S";
 
     /**

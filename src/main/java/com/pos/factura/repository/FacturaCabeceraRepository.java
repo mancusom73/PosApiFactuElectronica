@@ -32,10 +32,22 @@ public interface FacturaCabeceraRepository extends JpaRepository<FacturaCabecera
     /** Facturas por estado (PENDIENTE, APROBADO, RECHAZADO, ERROR) */
     List<FacturaCabeceraEntity> findByEstadoOrderByFechaAltaDesc(String estado);
 
-    /** Buscar con detalle y medios de pago cargados en una sola query */
+    /**
+     * Carga cabecera + detalle.
+     * Se separa de mediosPago para evitar MultipleBagFetchException
+     * (Hibernate no permite JOIN FETCH de dos @OneToMany en una misma query).
+     */
     @Query("SELECT f FROM FacturaCabeceraEntity f " +
            "LEFT JOIN FETCH f.detalle " +
+           "WHERE f.id = :id")
+    Optional<FacturaCabeceraEntity> findConDetalleById(@Param("id") Long id);
+
+    /**
+     * Carga cabecera + medios de pago.
+     * Usar junto con findConDetalleById para obtener la cabecera completa.
+     */
+    @Query("SELECT f FROM FacturaCabeceraEntity f " +
            "LEFT JOIN FETCH f.mediosPago " +
            "WHERE f.id = :id")
-    Optional<FacturaCabeceraEntity> findByIdConDetalle(@Param("id") Long id);
+    Optional<FacturaCabeceraEntity> findConMediosPagoById(@Param("id") Long id);
 }

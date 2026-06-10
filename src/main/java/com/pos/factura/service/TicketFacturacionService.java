@@ -56,24 +56,28 @@ public class TicketFacturacionService {
     @Transactional("posfeTransactionManager")
     public FacturaResponse facturarTicket(String numeroTicket) {
         log.info("Iniciando facturación del ticket: {}", numeroTicket);
-        TicketEntity ticket = ticketRepository.findByNumeroTicketConDetalle(numeroTicket)
+        TicketEntity ticket = ticketRepository.findConItemsByNumeroTicket(numeroTicket)
                 .orElseThrow(() -> new NoSuchElementException(
                         "No se encontró el ticket: " + numeroTicket));
+        ticketRepository.findConPagosByNumeroTicket(numeroTicket);
         return procesarFacturacion(ticket);
     }
 
     @Transactional("posfeTransactionManager")
     public FacturaResponse facturarTicketPorId(Long ticketId) {
         log.info("Iniciando facturación del ticket ID: {}", ticketId);
-        TicketEntity ticket = ticketRepository.findByIdConDetalle(ticketId)
+        TicketEntity ticket = ticketRepository.findConDetalleById(ticketId)
                 .orElseThrow(() -> new NoSuchElementException(
                         "No se encontró el ticket ID: " + ticketId));
+        ticketRepository.findConPagosById(ticketId);
         return procesarFacturacion(ticket);
     }
 
     @Transactional("posfeTransactionManager")
     public List<FacturaResponse> facturarPendientes() {
-        List<TicketEntity> pendientes = ticketRepository.findPendientes();
+        List<TicketEntity> pendientes = ticketRepository.findPendientesConItems();
+        // Segunda pasada para cargar pagos en las mismas instancias cacheadas
+        ticketRepository.findPendientesConPagos();
         log.info("Procesando {} tickets pendientes", pendientes.size());
         return pendientes.stream()
                 .map(ticket -> {

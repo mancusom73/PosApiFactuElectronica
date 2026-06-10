@@ -13,7 +13,7 @@ import java.util.Optional;
 @Repository
 public interface ClienteRepository extends JpaRepository<ClienteEntity, Long> {
 
-    Optional<ClienteEntity> findByDocumentoNro(String documentoNro);
+    Optional<ClienteEntity> findByNroDocumento(String documentoNro);
 
-    boolean existsByDocumentoNro(String documentoNro);
+    boolean existsByNroDocumento(String documentoNro);
 }

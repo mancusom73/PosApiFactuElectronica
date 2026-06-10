@@ -50,7 +50,7 @@ public class TicketEntity {
      * Hibernate de posFE no conoce ClienteEntity y lanza AnnotationException.
      * El cliente se carga en TicketFacturacionService usando ClienteRepository (DBTPVIV).
      */
-    @Column(name = "codCliente", nullable = false)
+    @Column(name = "cliente_id", nullable = false)
     private Long codCliente;
 
     @Enumerated(EnumType.STRING)
