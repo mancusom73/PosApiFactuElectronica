@@ -1,28 +1,49 @@
 package com.pos.factura.mapper;
 
 import com.pos.factura.dto.SolicitudFacturaRequest;
-import com.pos.factura.entity.posfe.ProductoEntity;
+import com.pos.factura.entity.dbtpviv.ArticuloEntity;
+import com.pos.factura.entity.dbtpviv.ClienteEntity;
 import com.pos.factura.entity.posfe.TicketEntity;
 import com.pos.factura.entity.posfe.TicketItemEntity;
 import com.pos.factura.entity.posfe.TicketPagoEntity;
-import com.pos.factura.entity.dbtpviv.ClienteEntity;
 import com.pos.factura.model.*;
+import com.pos.factura.repository.dbtpviv.ArticuloRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Convierte TicketEntity + ClienteEntity en SolicitudFacturaRequest.
+ * Convierte TicketEntity (posFE) + ClienteEntity (DBTPVIV) en SolicitudFacturaRequest.
  *
- * ClienteEntity usa los campos reales de DBTPVIV:
- *   COD_CLIENTE, COD_DOCUMENTO, NRO_DOCUMENTO, NOMBRE, DOMICILIO, PROVINCIA, COND_IVA
+ * Los artículos se leen de ArticuloEntity (DBTPVIV) usando el codInterno
+ * guardado en cada TicketItemEntity.
+ *
+ * Mapeo articulo → Producto AFIP:
+ *   COD_INTERNO      → codigo
+ *   NOMBRE           → descripcion
+ *   PRECIO_SIN_IVA   → precioUnitarioSinIva  (desde ticket_items, precio histórico)
+ *   COD_IVA          → alicuota              (convertido: 1→21%, 2→10.5%, 3→0%)
+ *   UNIDAD           → unidadMedida
+ *   lista_precios    → "LISTA GENERAL" (fijo)
  */
 @Component
 public class TicketMapper {
 
+    private static final Logger log = LoggerFactory.getLogger(TicketMapper.class);
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+    private final ArticuloRepository articuloRepository;
+
+    public TicketMapper(ArticuloRepository articuloRepository) {
+        this.articuloRepository = articuloRepository;
+    }
 
     public SolicitudFacturaRequest toSolicitud(TicketEntity ticket, ClienteEntity cliente) {
         SolicitudFacturaRequest solicitud = new SolicitudFacturaRequest();
@@ -31,33 +52,26 @@ public class TicketMapper {
         return solicitud;
     }
 
+    // ── Cliente ───────────────────────────────────────────────────────────────
+
     private Cliente mapCliente(ClienteEntity ce) {
         Cliente cliente = new Cliente();
         cliente.setDocumentoTipo(mapTipoDocumento(ce.getCodDocumento()));
         cliente.setDocumentoNro(ce.getNroDocumento());
         cliente.setRazonSocial(ce.getNombre());
         cliente.setDomicilio(ce.getDomicilio());
-
-        // PROVINCIA: viene como descripción (ej "CORDOBA"), mapear a código AFIP
         cliente.setProvincia(mapProvincia(ce.getProvincia()));
-
-        // COND_IVA: mapear código numérico → código AFIP (CF, RI, MO)
         cliente.setCondicionIva(mapCondicionIva(ce.getCondIva()));
-
-        // Email y envia_por_mail no existen en DBTPVIV — valores por defecto
         cliente.setEmail(null);
         cliente.setEnviaPorMail("N");
 
         return cliente;
     }
 
-    /**
-     * Mapea el código de documento de DBTPVIV al tipo que espera AFIP.
-     * Ajustar según los valores reales de la columna COD_DOCUMENTO en tu BD.
-     */
-    private String mapTipoDocumento(String codDocumento) {
-        if (codDocumento == null) return "DNI";
-        switch (codDocumento.trim().toUpperCase()) {
+    /** Ajustar según los valores reales de COD_DOCUMENTO en tu BD */
+    private String mapTipoDocumento(String cod) {
+        if (cod == null) return "DNI";
+        switch (cod.trim().toUpperCase()) {
             case "D": return "DNI";
             case "C": return "CUIT";
             case "L": return "CUIL";
@@ -81,14 +95,16 @@ public class TicketMapper {
     private String mapProvincia(String provincia) {
         if (provincia == null) return "13";
         switch (provincia.trim().toUpperCase()) {
-            case "BUENOS AIRES":  return "1";
-            case "CABA":          return "2";
-            case "CORDOBA":       return "13";
-            case "SANTA FE":      return "21";
-            case "MENDOZA":       return "10";
-            default:              return "13";
+            case "BUENOS AIRES": return "1";
+            case "CABA":         return "2";
+            case "CORDOBA":      return "13";
+            case "SANTA FE":     return "21";
+            case "MENDOZA":      return "10";
+            default:             return "13";
         }
     }
+
+    // ── Comprobante ───────────────────────────────────────────────────────────
 
     private Comprobante mapComprobante(TicketEntity ticket) {
         Comprobante comprobante = new Comprobante();
@@ -111,7 +127,10 @@ public class TicketMapper {
         return comprobante;
     }
 
+    // ── Items ─────────────────────────────────────────────────────────────────
+
     private List<DetalleItem> mapItems(List<TicketItemEntity> items) {
+        if (items == null) return new ArrayList<>();
         return items.stream().map(this::mapItem).collect(Collectors.toList());
     }
 
@@ -125,18 +144,84 @@ public class TicketMapper {
         return item;
     }
 
+    /**
+     * Mapea un TicketItemEntity al modelo Producto usando ArticuloEntity de DBTPVIV.
+     *
+     * Precio y alícuota se toman del ticket_item (precio histórico al momento de la venta).
+     * Descripción, código y unidad se toman del artículo actual en DBTPVIV.
+     */
     private Producto mapProducto(TicketItemEntity ie) {
-        ProductoEntity pe = ie.getProducto();
         Producto producto = new Producto();
-        producto.setCodigo(pe.getCodigo());
-        producto.setDescripcion(pe.getDescripcion());
+
+        // Buscar artículo en DBTPVIV por COD_INTERNO
+        Optional<ArticuloEntity> articuloOpt =
+                articuloRepository.findActivoByCodInterno(ie.getCodInterno());
+
+        if (articuloOpt.isPresent()) {
+            ArticuloEntity art = articuloOpt.get();
+            // COD_INTERNO → codigo
+            producto.setCodigo(String.valueOf(art.getCodInterno()));
+            // NOMBRE → descripcion
+            producto.setDescripcion(art.getNombre() != null ? art.getNombre() : "SIN DESCRIPCION");
+            // UNIDAD → unidadMedida (CHAR(2) de DBTPVIV → código numérico AFIP)
+            producto.setUnidadMedida(mapUnidadMedida(art.getUnidad()));
+        } else {
+            // Artículo no encontrado — usar datos mínimos del ítem para no bloquear la factura
+            log.warn("Artículo con COD_INTERNO {} no encontrado en DBTPVIV", ie.getCodInterno());
+            producto.setCodigo(String.valueOf(ie.getCodInterno()));
+            producto.setDescripcion("ARTICULO " + ie.getCodInterno());
+            producto.setUnidadMedida("7");
+        }
+
+        // PRECIO_SIN_IVA → precio histórico guardado en el ticket_item
         producto.setPrecioUnitarioSinIva(ie.getPrecioUnitarioSinIva());
+
+        // COD_IVA → alícuota AFIP (0, 10.5 o 21) — también histórico del ticket_item
         producto.setAlicuota(ie.getAlicuotaIva().doubleValue());
-        producto.setUnidadMedida(pe.getUnidadMedida() != null ? pe.getUnidadMedida() : "7");
-        producto.setListaPrecios(pe.getListaPrecios() != null ? pe.getListaPrecios() : "LISTA GENERAL");
+
+        // Siempre fija
+        producto.setListaPrecios("LISTA GENERAL");
         producto.setImpuestosInternosAlicuota(0.0);
         return producto;
     }
+
+    /**
+     * Convierte COD_IVA (TINYINT de DBTPVIV) a alícuota porcentual AFIP.
+     * Ajustar los valores según la tabla de IVA de tu sistema.
+     */
+    public static double mapCodIvaAAlicuota(Integer codIva) {
+        if (codIva == null) return 21.0;
+        switch (codIva) {
+            case 1: return 21.0;    // IVA 21%
+            case 2: return 10.5;    // IVA 10.5%
+            case 3: return 0.0;     // Exento
+            case 4: return 0.0;     // No gravado
+            case 5: return 27.0;    // IVA 27%
+            default: return 21.0;
+        }
+    }
+
+    /**
+     * Convierte la unidad de medida de DBTPVIV al código numérico de AFIP.
+     * Código 7 = Unidades (el más común).
+     */
+    private String mapUnidadMedida(String unidad) {
+        if (unidad == null || unidad.trim().isEmpty()) return "7";
+        switch (unidad.trim().toUpperCase()) {
+            case "UN":
+            case "U":  return "7";   // Unidades
+            case "KG":
+            case "KI": return "1";   // Kilogramos
+            case "GR": return "2";   // Gramos
+            case "LT":
+            case "L":  return "5";   // Litros
+            case "MT":
+            case "M":  return "6";   // Metros
+            default:   return "7";   // Unidades por defecto
+        }
+    }
+
+    // ── Pagos ─────────────────────────────────────────────────────────────────
 
     private Pagos mapPagos(List<TicketPagoEntity> pagosEntidad) {
         List<Pagos.FormaPago> formas = pagosEntidad.stream()

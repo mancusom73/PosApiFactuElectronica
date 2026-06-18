@@ -12,22 +12,19 @@ import java.util.Optional;
 
 /**
  * Queries con múltiples @OneToMany (items, pagos) se separan para evitar
- * MultipleBagFetchException de Hibernate. Llamar en secuencia desde el servicio:
- *   1. findConItemsById / findConItemsByNumeroTicket  → carga items + producto
- *   2. findConPagosById / findConPagosByNumeroTicket  → carga pagos
- * Hibernate unifica ambos resultados en la misma instancia cacheada.
+ * MultipleBagFetchException. Llamar en secuencia desde el servicio:
+ *   1. findConItems*  → carga items del ticket
+ *   2. findConPagos*  → carga pagos en la misma instancia cacheada
+ *
+ * Los artículos se cargan por separado en TicketMapper usando ArticuloRepository (DBTPVIV).
  */
 @Repository
 public interface TicketRepository extends JpaRepository<TicketEntity, Long> {
 
-    /**
-     * Busca un ticket por número correlativo del POS.
-     * Carga cliente + items + pagos en una sola query (evita N+1).
-     * Nota: text blocks (""") son Java 15+, se usan String normales para Java 11.
-     */
+    // ── Por número de ticket ──────────────────────────────────────────────────
+
     @Query("SELECT t FROM TicketEntity t " +
-           "LEFT JOIN FETCH t.items i " +
-           "LEFT JOIN FETCH i.producto " +
+           "LEFT JOIN FETCH t.items " +
            "WHERE t.numeroTicket = :numeroTicket")
     Optional<TicketEntity> findConItemsByNumeroTicket(
             @Param("numeroTicket") String numeroTicket);
@@ -40,12 +37,8 @@ public interface TicketRepository extends JpaRepository<TicketEntity, Long> {
 
     // ── Por ID ────────────────────────────────────────────────────────────────
 
-    /**
-     * Busca por ID con todas las relaciones cargadas.
-     */
     @Query("SELECT t FROM TicketEntity t " +
-           "LEFT JOIN FETCH t.items i " +
-           "LEFT JOIN FETCH i.producto " +
+           "LEFT JOIN FETCH t.items " +
            "WHERE t.id = :id")
     Optional<TicketEntity> findConDetalleById(@Param("id") Long id);
 
@@ -57,8 +50,7 @@ public interface TicketRepository extends JpaRepository<TicketEntity, Long> {
     // ── Pendientes ────────────────────────────────────────────────────────────
 
     @Query("SELECT t FROM TicketEntity t " +
-           "LEFT JOIN FETCH t.items i " +
-           "LEFT JOIN FETCH i.producto " +
+           "LEFT JOIN FETCH t.items " +
            "WHERE t.estado = 'PENDIENTE' " +
            "ORDER BY t.fecha ASC, t.fechaAlta ASC")
     List<TicketEntity> findPendientesConItems();

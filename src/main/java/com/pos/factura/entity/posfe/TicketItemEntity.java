@@ -6,8 +6,11 @@ import lombok.Setter;
 import java.math.BigDecimal;
 
 /**
- * Entidad JPA que representa cada línea de ítem dentro de un ticket del POS.
- * Tabla: `ticket_items`
+ * Línea de ítem dentro de un ticket del POS.
+ * Tabla: ticket_items (posFE)
+ *
+ * El artículo vive en DBTPVIV — no se puede usar @ManyToOne cross-database.
+ * Se guarda codInterno (INT) para buscarlo en ArticuloRepository cuando se necesite.
  */
 @Getter
 @Setter
@@ -20,15 +23,17 @@ public class TicketItemEntity {
     @Column(name = "id")
     private Long id;
 
-    // Relación N:1 — muchos ítems pertenecen a un ticket
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ticket_id", nullable = false)
     private TicketEntity ticket;
 
-    // Relación N:1 — el ítem referencia al producto del catálogo
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "producto_id", nullable = false)
-    private ProductoEntity producto;
+    /**
+     * Clave del artículo en la tabla articulo de DBTPVIV (campo COD_INTERNO).
+     * No se usa @ManyToOne porque articulo y ticket_items están en bases distintas.
+     * Usar ArticuloRepository.findActivoByCodInterno() para obtener el artículo.
+     */
+    @Column(name = "producto_id", nullable = false)
+    private Integer codInterno;
 
     @Column(name = "cantidad", nullable = false, precision = 10, scale = 2)
     private BigDecimal cantidad;
@@ -40,6 +45,10 @@ public class TicketItemEntity {
     @Column(name = "precio_unitario_sin_iva", nullable = false, precision = 12, scale = 2)
     private BigDecimal precioUnitarioSinIva;
 
+    /**
+     * Alícuota de IVA en porcentaje (0, 10.5 o 21).
+     * Se convierte desde articulo.COD_IVA al cerrar el ticket.
+     */
     @Column(name = "alicuota_iva", nullable = false, precision = 5, scale = 1)
     private BigDecimal alicuotaIva;
 

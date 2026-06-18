@@ -143,14 +143,8 @@ public class TicketEntity {
         NOTA_DEBITO_C("NOTA DE DEBITO C");
 
         private final String descripcionAfip;
-
-        TipoComprobante(String descripcionAfip) {
-            this.descripcionAfip = descripcionAfip;
-        }
-
-        public String getDescripcionAfip() {
-            return descripcionAfip;
-        }
+        TipoComprobante(String descripcionAfip) { this.descripcionAfip = descripcionAfip; }
+        public String getDescripcionAfip() { return descripcionAfip; }
     }
 
     public enum EstadoTicket {
@@ -158,12 +152,8 @@ public class TicketEntity {
     }
 
     @PrePersist
-    protected void onCreate() {
-        fechaAlta = LocalDateTime.now();
-    }
+    protected void onCreate() { fechaAlta = LocalDateTime.now(); }
 
     @PreUpdate
-    protected void onUpdate() {
-        fechaModificacion = LocalDateTime.now();
-    }
+    protected void onUpdate() { fechaModificacion = LocalDateTime.now(); }
 }
