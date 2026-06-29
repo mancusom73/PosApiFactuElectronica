@@ -1,7 +1,10 @@
 package com.pos.factura.controller;
 
+import com.pos.factura.dto.EventoResponse;
 import com.pos.factura.dto.FacturaResponse;
+import com.pos.factura.entity.dbtpviv.Evento;
 import com.pos.factura.service.TicketFacturacionService;
+import com.pos.factura.service.EventoService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -22,9 +25,11 @@ public class TicketController {
     private static final Logger log = LoggerFactory.getLogger(TicketController.class);
 
     private final TicketFacturacionService ticketFacturacionService;
+    private final EventoService eventoService;
 
-    public TicketController(TicketFacturacionService ticketFacturacionService) {
+    public TicketController(TicketFacturacionService ticketFacturacionService, EventoService eventoService) {
         this.ticketFacturacionService = ticketFacturacionService;
+        this.eventoService = eventoService;
     }
 
     /**
@@ -61,31 +66,33 @@ public class TicketController {
     }
 
     /**
-     * POST /api/v1/tickets/id/{id}/facturar
+     * POST /api/v1/tickets/facturar
      *
-     * Lee el ticket de MySQL por su ID interno y emite la factura electrónica.
+     * Lee el evento de MySQL  emite la factura electrónica.
+     * Quizas deba tener que pasar id_evento + caja_Z por las dudas
+     * por ahora busca el ultimo...creo
      *
-     * Ejemplo: POST /api/v1/tickets/id/42/facturar
+     * Ejemplo: POST /api/v1/tickets/facturar
      */
-    @PostMapping("/id/{id}/facturar")
-    public ResponseEntity<FacturaResponse> facturarPorId(@PathVariable Long id) {
+    @PostMapping("/facturar")
+    public ResponseEntity<Evento> facturarPorId() {
 
-        log.info("Request de facturación para ticket ID: {}", id);
+        log.info("Request de facturación para ticket ID: {}");
 
         try {
-            FacturaResponse response = ticketFacturacionService.facturarTicketPorId(id);
-            return response.isExitoso()
-                    ? ResponseEntity.ok(response)
-                    : ResponseEntity.badRequest().body(response);
+            Evento response = eventoService.buscarEvento();
+            return/* response.isExitoso()
+                    ? */ResponseEntity.ok(response);
+                    //: ResponseEntity.badRequest().body(response);
 
         } catch (NoSuchElementException e) {
             return ResponseEntity.notFound().build();
 
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest().body(
-                    FacturaResponse.builder()
-                            .exitoso(false)
-                            .mensaje(e.getMessage())
+                    Evento.builder()
+//                            .exitoso(false)
+  //                          .mensaje(e.getMessage())
                             .build()
             );
         }

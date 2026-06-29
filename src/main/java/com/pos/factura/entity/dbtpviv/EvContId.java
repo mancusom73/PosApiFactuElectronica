@@ -1,56 +1,29 @@
 package com.pos.factura.entity.dbtpviv;
 
+import lombok.Data;
+
 import javax.persistence.Column;
 import javax.persistence.Embeddable;
 import java.io.Serializable;
 import java.util.Objects;
 
-@Embeddable
+@Data
 public class EvContId implements Serializable {
 
-    @Column(name = "CAJA_Z")
-    private Integer cajaZ;
-
-    @Column(name = "ID_EVENTO")
-    private Integer idEvento;
-
-    @Column(name = "POSICION")
+    private Long cajaZ;
+    private Long idEvento;
     private Short posicion;
 
     public EvContId() {
     }
 
     public EvContId(
-            Integer cajaZ,
-            Integer idEvento,
+            Long cajaZ,
+            Long idEvento,
             Short posicion
     ) {
         this.cajaZ = cajaZ;
         this.idEvento = idEvento;
-        this.posicion = posicion;
-    }
-
-    public Integer getCajaZ() {
-        return cajaZ;
-    }
-
-    public void setCajaZ(Integer cajaZ) {
-        this.cajaZ = cajaZ;
-    }
-
-    public Integer getIdEvento() {
-        return idEvento;
-    }
-
-    public void setIdEvento(Integer idEvento) {
-        this.idEvento = idEvento;
-    }
-
-    public Short getPosicion() {
-        return posicion;
-    }
-
-    public void setPosicion(Short posicion) {
         this.posicion = posicion;
     }
 

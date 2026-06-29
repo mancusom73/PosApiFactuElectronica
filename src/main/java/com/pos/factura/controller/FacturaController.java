@@ -34,7 +34,7 @@ public class FacturaController {
      * @param solicitud Datos del cliente + comprobante (sin credenciales)
      * @return CAE, PDF en base64, QR, número de comprobante
      */
-    @PostMapping("/emitir")
+    @PostMapping("/api/v1/emitir")
     public ResponseEntity<FacturaResponse> emitirFactura(
             @Valid @RequestBody SolicitudFacturaRequest solicitud) {
 

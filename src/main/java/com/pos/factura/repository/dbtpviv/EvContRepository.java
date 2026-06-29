@@ -12,8 +12,8 @@ import java.util.List;
 public interface EvContRepository
         extends JpaRepository<EvCont, EvContId> {
 
-    List<EvCont> findByIdCajaZAndIdIdEvento(
-            Integer cajaZ,
-            Integer idEvento
+    List<EvCont> findByCajaZAndIdEvento(
+            Long cajaZ,
+            Long idEvento
     );
 }

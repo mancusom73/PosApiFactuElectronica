@@ -1,14 +1,32 @@
 package com.pos.factura.entity.dbtpviv;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import javax.persistence.*;
 import java.util.List;
 
 @Entity
+@Data
 @Table(name = "eventos")
+@IdClass(EventoId.class)
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
 public class Evento {
 
-    @EmbeddedId
-    private EventoId id;
+  /*  @EmbeddedId
+    private EventoId id;*/
+
+    @Id
+    @Column(name = "CAJA_Z")
+    private Long cajaZ;
+
+    @Id
+    @Column(name = "ID_EVENTO")
+    private Long idEvento;
 
     @Column(name = "NRO_TICKET")
     private Integer nroTicket;
@@ -43,12 +61,12 @@ public class Evento {
     @Column(name = "IVA2")
     private Double iva2;
 
-    @Column(name = "SUC_COMPROBANTE")
+ /*   @Column(name = "SUC_COMPROBANTE")
     private Short sucComprobante;
 
     @Column(name = "NRO_COMPROBANTE")
     private Integer nroComprobante;
-
+*/
     @Column(name = "TIPO_EVENTO")
     private Byte tipoEvento;
 
@@ -61,153 +79,6 @@ public class Evento {
     @Column(name = "TARJ_CLIE_AFINIDAD")
     private String tarjClieAfinidad;
 
-    // =========================================
-    // GETTERS & SETTERS
-    // =========================================
-
-    public EventoId getId() {
-        return id;
-    }
-
-    public void setId(EventoId id) {
-        this.id = id;
-    }
-
-    public Integer getNroTicket() {
-        return nroTicket;
-    }
-
-    public void setNroTicket(Integer nroTicket) {
-        this.nroTicket = nroTicket;
-    }
-
-    public Short getFecha() {
-        return fecha;
-    }
-
-    public void setFecha(Short fecha) {
-        this.fecha = fecha;
-    }
-
-    public Short getHora() {
-        return hora;
-    }
-
-    public void setHora(Short hora) {
-        this.hora = hora;
-    }
-
-    public Short getCajero() {
-        return cajero;
-    }
-
-    public void setCajero(Short cajero) {
-        this.cajero = cajero;
-    }
-
-    public Short getCantBultos() {
-        return cantBultos;
-    }
-
-    public void setCantBultos(Short cantBultos) {
-        this.cantBultos = cantBultos;
-    }
-
-    public Double getImporteSinIva() {
-        return importeSinIva;
-    }
-
-    public void setImporteSinIva(Double importeSinIva) {
-        this.importeSinIva = importeSinIva;
-    }
-
-    public Double getImpInt() {
-        return impInt;
-    }
-
-    public void setImpInt(Double impInt) {
-        this.impInt = impInt;
-    }
-
-    public Double getExento() {
-        return exento;
-    }
-
-    public void setExento(Double exento) {
-        this.exento = exento;
-    }
-
-    public Double getIva1() {
-        return iva1;
-    }
-
-    public void setIva1(Double iva1) {
-        this.iva1 = iva1;
-    }
-
-    public Integer getCodCliente() {
-        return codCliente;
-    }
-
-    public void setCodCliente(Integer codCliente) {
-        this.codCliente = codCliente;
-    }
-
-    public Double getIva2() {
-        return iva2;
-    }
-
-    public void setIva2(Double iva2) {
-        this.iva2 = iva2;
-    }
-
-    public Short getSucComprobante() {
-        return sucComprobante;
-    }
-
-    public void setSucComprobante(Short sucComprobante) {
-        this.sucComprobante = sucComprobante;
-    }
-
-    public Integer getNroComprobante() {
-        return nroComprobante;
-    }
-
-    public void setNroComprobante(Integer nroComprobante) {
-        this.nroComprobante = nroComprobante;
-    }
-
-    public Byte getTipoEvento() {
-        return tipoEvento;
-    }
-
-    public void setTipoEvento(Byte tipoEvento) {
-        this.tipoEvento = tipoEvento;
-    }
-
-    public Short getSucursal() {
-        return sucursal;
-    }
-
-    public void setSucursal(Short sucursal) {
-        this.sucursal = sucursal;
-    }
-
-    public Short getCaja() {
-        return caja;
-    }
-
-    public void setCaja(Short caja) {
-        this.caja = caja;
-    }
-
-    public String getTarjClieAfinidad() {
-        return tarjClieAfinidad;
-    }
-
-    public void setTarjClieAfinidad(String tarjClieAfinidad) {
-        this.tarjClieAfinidad = tarjClieAfinidad;
-    }
     @OneToMany(
             mappedBy = "evento",
             fetch = FetchType.LAZY,
