@@ -78,7 +78,7 @@ public class Evento {
 
     @Column(name = "TARJ_CLIE_AFINIDAD")
     private String tarjClieAfinidad;
-
+/*
     @OneToMany(
             mappedBy = "evento",
             fetch = FetchType.LAZY,
@@ -91,5 +91,5 @@ public class Evento {
 
     public void setDetalles(List<EvCont> detalles) {
         this.detalles = detalles;
-    }
+    }*/
 }

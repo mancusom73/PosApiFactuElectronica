@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS tickets (
 CREATE TABLE IF NOT EXISTS ticket_items (
     id                      BIGINT          NOT NULL AUTO_INCREMENT,
     ticket_id               BIGINT          NOT NULL,
-    producto_id             BIGINT          NOT NULL,
+    producto_id             INT(11)          NOT NULL,
     cantidad                DECIMAL(10,2)   NOT NULL,
     precio_unitario_sin_iva DECIMAL(12,2)   NOT NULL COMMENT 'Precio histórico al momento de la venta',
     alicuota_iva            DECIMAL(5,1)    NOT NULL,
@@ -110,11 +110,7 @@ CREATE TABLE IF NOT EXISTS ticket_items (
 
     PRIMARY KEY (id),
     INDEX idx_ticket_items_ticket (ticket_id),
-    INDEX idx_ticket_items_producto (producto_id),
-    CONSTRAINT fk_ticket_items_ticket
-        FOREIGN KEY (ticket_id) REFERENCES tickets (id) ON DELETE CASCADE,
-    CONSTRAINT fk_ticket_items_producto
-        FOREIGN KEY (producto_id) REFERENCES productos (id)
+    INDEX idx_ticket_items_producto (producto_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 

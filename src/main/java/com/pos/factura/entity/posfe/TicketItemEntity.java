@@ -32,7 +32,7 @@ public class TicketItemEntity {
      * No se usa @ManyToOne porque articulo y ticket_items están en bases distintas.
      * Usar ArticuloRepository.findActivoByCodInterno() para obtener el artículo.
      */
-    @Column(name = "producto_id", nullable = false)
+    @Column(name = "producto_id",columnDefinition = "INT(11)", nullable = false)
     private Integer codInterno;
 
     @Column(name = "cantidad", nullable = false, precision = 10, scale = 2)

@@ -2,6 +2,7 @@ package com.pos.factura.controller;
 
 import com.pos.factura.dto.EventoResponse;
 import com.pos.factura.dto.FacturaResponse;
+import com.pos.factura.entity.dbtpviv.EvCont;
 import com.pos.factura.entity.dbtpviv.Evento;
 import com.pos.factura.service.TicketFacturacionService;
 import com.pos.factura.service.EventoService;
@@ -81,6 +82,7 @@ public class TicketController {
 
         try {
             Evento response = eventoService.buscarEvento();
+            List<EvCont> evCont = eventoService.buscarEvCont(response.getCajaZ(), response.getIdEvento());
             return/* response.isExitoso()
                     ? */ResponseEntity.ok(response);
                     //: ResponseEntity.badRequest().body(response);

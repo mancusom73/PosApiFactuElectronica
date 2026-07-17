@@ -1,0 +1,10 @@
+Ejecutar consola maven
+
+mvn spring-boot:run
+
+Para hacer modo Debug
+1) mvn spring-boot:run -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005"
+
+(La aplicación se pausará en el inicio y se quedará esperando a que te conectes).
+2)Ve al menú superior: Run -> Edit Configurations...Haz clic en el botón + (Add New Configuration) y selecciona Remote JVM Debug.Deja los valores por defecto (Puerto: 5005) y haz clic en OK.Haz clic en el icono del escarabajo verde (Debug) en la barra superior. Tu aplicación continuará arrancando y los breakpoints ahora sí funcionarán.
+

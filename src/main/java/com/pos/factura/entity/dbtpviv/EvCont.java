@@ -28,7 +28,7 @@ public class EvCont {
     // RELACION MANY TO ONE
     // =====================================================
 
-    @ManyToOne(fetch = FetchType.LAZY)
+/*    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumns({
             @JoinColumn(
                     name = "CAJA_Z",
@@ -44,7 +44,7 @@ public class EvCont {
             )
     })
     private Evento evento;
-
+*/
     // =====================================================
     // CAMPOS
     // =====================================================
