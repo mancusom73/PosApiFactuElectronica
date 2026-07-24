@@ -76,13 +76,16 @@ public class TicketController {
      * Ejemplo: POST /api/v1/tickets/facturar
      */
     @PostMapping("/facturar")
-    public ResponseEntity<Evento> facturarPorId() {
+    public ResponseEntity<FacturaResponse> facturarPorId(
+            @RequestParam Long cajaZ,
+            @RequestParam Long idEvento
+    ) {
 
-        log.info("Request de facturación para ticket ID: {}");
+        log.info("Request de facturación — cajaZ: {}, idEvento: {}", cajaZ, idEvento);
 
         try {
-            Evento response = eventoService.buscarEvento();
-            List<EvCont> evCont = eventoService.buscarEvCont(response.getCajaZ(), response.getIdEvento());
+            FacturaResponse response = eventoService.buscarEvento(cajaZ,idEvento);
+
             return/* response.isExitoso()
                     ? */ResponseEntity.ok(response);
                     //: ResponseEntity.badRequest().body(response);
@@ -92,7 +95,8 @@ public class TicketController {
 
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest().body(
-                    Evento.builder()
+                    //Evento.builder()
+                    FacturaResponse.builder()
 //                            .exitoso(false)
   //                          .mensaje(e.getMessage())
                             .build()
@@ -111,5 +115,13 @@ public class TicketController {
         log.info("Procesando tickets pendientes");
         List<FacturaResponse> resultados = ticketFacturacionService.facturarPendientes();
         return ResponseEntity.ok(resultados);
+    }
+
+    /**
+     * GET /api/v1/tickets/ping
+     */
+    @GetMapping("/ping")
+    public ResponseEntity<String> ping() {
+        return ResponseEntity.ok("POS Factura Electronica — servicio activo");
     }
 }

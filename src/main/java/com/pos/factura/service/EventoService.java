@@ -1,10 +1,14 @@
 package com.pos.factura.service;
 
-import com.pos.factura.dto.EventoResponse;
+import com.pos.factura.dto.FacturaResponse;
 import com.pos.factura.entity.dbtpviv.EvCont;
+import com.pos.factura.entity.dbtpviv.EvMedios;
 import com.pos.factura.entity.dbtpviv.Evento;
+import com.pos.factura.entity.posfe.TicketEntity;
+import com.pos.factura.mapper.TicketMapper;
 import com.pos.factura.repository.dbtpviv.EvContRepository;
 import com.pos.factura.repository.dbtpviv.EventoRepository;
+import com.pos.factura.repository.dbtpviv.EvMediosRepository;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,18 +16,21 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.NoSuchElementException;
 
 @Service
 public class EventoService {
 
     private final EventoRepository eventoRepository;
     private final EvContRepository evcontRepository;
+    private final EvMediosRepository evmediosRepository;
+    private final TicketFacturacionService ticketFacturacionService;
     private static final Logger log = LoggerFactory.getLogger(EventoService.class);
 
-    public EventoService(EventoRepository repository, EvContRepository evcontRepository) {
+    public EventoService(EventoRepository repository, EvContRepository evcontRepository, EvMediosRepository evmediosRepository, FacturaService facturaService, TicketFacturacionService ticketFacturacionService) {
         this.eventoRepository = repository;
         this.evcontRepository =evcontRepository;
+        this.evmediosRepository = evmediosRepository;
+        this.ticketFacturacionService = ticketFacturacionService;
     }
 
    /* public Evento buscar(Integer cajaZ,Integer idEvento) {
@@ -35,17 +42,20 @@ public class EventoService {
     }*/
 
     @Transactional("dbtpvivTransactionManager")
-    public Evento buscarEvento() {
+    public FacturaResponse buscarEvento(Long cajaZ, Long idEvento) {
         log.info("Iniciando la busqueda del evento: {}");
-        Long cajaZ = Long.valueOf(100190);
-        Long id_evento =   Long.valueOf(62);
-        Evento ticket = eventoRepository.findByCajaZAndIdEvento(cajaZ, id_evento);
+        Evento ticket = eventoRepository.findByCajaZAndIdEvento(cajaZ, idEvento);
                 //findTopByOrderByCajaZAndIdIdEventoDesc();
 /*                .orElseThrow(() -> new NoSuchElementException(
                         "No se encontró el ticket ID: "));*/
         //     ticketRepository.findConPagosById(ticketId);
-        return ticket;
-        //return procesarFacturacion(ticket);
+        List<EvCont> evCont = this.buscarEvCont(ticket.getCajaZ(), ticket.getIdEvento());
+        List<EvMedios> evMedios = this.buscarEvMedios(ticket.getCajaZ(), ticket.getIdEvento());
+        //TODO MAPEAR TODO DESDE DBTPVIV A posfe
+        TicketEntity ticketCabecera = TicketMapper.mapEventoTicketEntity(ticket, evCont);
+
+        //return ticket;
+        return ticketFacturacionService.facturar(ticketCabecera,evCont);
     }
     @Transactional("dbtpvivTransactionManager")
     public List<EvCont> buscarEvCont(Long cajaZ,Long idEvento) {
@@ -58,6 +68,18 @@ public class EventoService {
                         "No se encontró el ticket ID: "));*/
         //     ticketRepository.findConPagosById(ticketId);
         return evCont;
+
+    }
+
+    @Transactional("dbtpvivTransactionManager")
+    public List<EvMedios> buscarEvMedios(Long cajaZ,Long idEvento) {
+        log.info("Iniciando la busqueda del ev_medios: {}");
+        List<EvMedios>  evmedios= evmediosRepository.findByEvento(cajaZ,idEvento);
+        //findTopByOrderByCajaZAndIdIdEventoDesc();
+/*                .orElseThrow(() -> new NoSuchElementException(
+                        "No se encontró el ticket ID: "));*/
+        //     ticketRepository.findConPagosById(ticketId);
+        return evmedios;
 
     }
 }

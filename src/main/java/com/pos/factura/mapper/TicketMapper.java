@@ -3,6 +3,8 @@ package com.pos.factura.mapper;
 import com.pos.factura.dto.SolicitudFacturaRequest;
 import com.pos.factura.entity.dbtpviv.ArticuloEntity;
 import com.pos.factura.entity.dbtpviv.ClienteEntity;
+import com.pos.factura.entity.dbtpviv.EvCont;
+import com.pos.factura.entity.dbtpviv.Evento;
 import com.pos.factura.entity.posfe.TicketEntity;
 import com.pos.factura.entity.posfe.TicketItemEntity;
 import com.pos.factura.entity.posfe.TicketPagoEntity;
@@ -12,7 +14,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,11 +39,13 @@ public class TicketMapper {
 
     private static final Logger log = LoggerFactory.getLogger(TicketMapper.class);
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static EventoMapper eventoMapper;
 
     private final ArticuloRepository articuloRepository;
 
-    public TicketMapper(ArticuloRepository articuloRepository) {
+    public TicketMapper(ArticuloRepository articuloRepository, EventoMapper eventoMapper) {
         this.articuloRepository = articuloRepository;
+        this.eventoMapper = eventoMapper;
     }
 
     public SolicitudFacturaRequest toSolicitud(TicketEntity ticket, ClienteEntity cliente) {
@@ -205,7 +208,7 @@ public class TicketMapper {
      * Convierte la unidad de medida de DBTPVIV al código numérico de AFIP.
      * Código 7 = Unidades (el más común).
      */
-    private String mapUnidadMedida(String unidad) {
+    static String mapUnidadMedida(String unidad) {
         if (unidad == null || unidad.trim().isEmpty()) return "7";
         switch (unidad.trim().toUpperCase()) {
             case "UN":
@@ -230,5 +233,18 @@ public class TicketMapper {
         Pagos pagos = new Pagos();
         pagos.setFormasPago(formas);
         return pagos;
+    }
+
+    /**
+     * Mapea eventos en ticket para empezar el proceso de armado
+     * a enviar a la api de factura electronica
+     */
+    public static TicketEntity mapEventoTicketEntity(Evento ev,  List<EvCont> evCont) {
+     /*   TicketEntity ticket = TicketTestDataBuilder.facturaB();   // 2 ítems, pago mixto
+        TicketEntity ticket = TicketTestDataBuilder.facturaA();   // 1 ítem, transferencia
+        TicketEntity ticket = TicketTestDataBuilder.facturaC();   // exento, efectivo
+        TicketEntity ticket = TicketTestDataBuilder.notaCreditoB();*/
+        TicketEntity tEntity = eventoMapper.toTicketEntity(ev, evCont);
+        return tEntity;
     }
 }

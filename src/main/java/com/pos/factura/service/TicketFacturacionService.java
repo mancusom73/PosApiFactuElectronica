@@ -2,6 +2,7 @@ package com.pos.factura.service;
 
 import com.pos.factura.dto.FacturaResponse;
 import com.pos.factura.dto.SolicitudFacturaRequest;
+import com.pos.factura.entity.dbtpviv.EvCont;
 import com.pos.factura.entity.posfe.TicketEntity;
 import com.pos.factura.entity.posfe.TicketEntity.EstadoTicket;
 import com.pos.factura.entity.dbtpviv.ClienteEntity;
@@ -74,6 +75,12 @@ public class TicketFacturacionService {
     }
 
     @Transactional("posfeTransactionManager")
+    public FacturaResponse facturar(TicketEntity ticket, List<EvCont> evCont) {
+        log.info("Iniciando facturación del ticket ID: {}", ticket.getId());
+        return procesarFacturacion(ticket);
+    }
+
+    @Transactional("posfeTransactionManager")
     public List<FacturaResponse> facturarPendientes() {
         List<TicketEntity> pendientes = ticketRepository.findPendientesConItems();
         // Segunda pasada para cargar pagos en las mismas instancias cacheadas
@@ -99,10 +106,10 @@ public class TicketFacturacionService {
         validarEstadoTicket(ticket);
 
         // Cargar cliente desde DBTPVIV usando codCliente del ticket
+        // Si no se encuentra, se factura como Consumidor Final genérico (valores por defecto ARCA)
         ClienteEntity cliente = clienteRepository.findById(ticket.getCodCliente())
-                .orElseThrow(() -> new NoSuchElementException(
-                        "No se encontró el cliente ID: " + ticket.getCodCliente() + " en DBTPVIV"));
-
+                .orElseGet(() -> clienteGenerico(ticket.getCodCliente()));
+        //Ojo que hay que controlar ciertos montos para que si o si se identifique el cliente El límite de $10.000.000 para cualquier medio de pago
         try {
             SolicitudFacturaRequest solicitud = ticketMapper.toSolicitud(ticket, cliente);
 
@@ -132,6 +139,23 @@ public class TicketFacturacionService {
             ticketRepository.save(ticket);
             throw e;
         }
+    }
+
+    /**
+     * Cliente por defecto usado cuando el ticket no tiene un cliente identificado
+     * en DBTPVIV. Representa un Consumidor Final genérico según lo exigido por ARCA.
+     */
+    private ClienteEntity clienteGenerico(Long codCliente) {
+        log.warn("Cliente ID {} no encontrado en DBTPVIV. Se factura como Consumidor Final genérico", codCliente);
+        ClienteEntity cliente = new ClienteEntity();
+        cliente.setCodCliente(codCliente);
+        cliente.setCodDocumento("D");
+        cliente.setNroDocumento("0");
+        cliente.setNombre("Consumidor Final");
+        cliente.setDomicilio("");
+        cliente.setProvincia("13");
+        cliente.setCondIva("4");
+        return cliente;
     }
 
     private void validarEstadoTicket(TicketEntity ticket) {
@@ -169,4 +193,10 @@ public class TicketFacturacionService {
         ticket.setErrorDescripcion(descripcion);
         log.warn("Ticket {} ERROR: {}", ticket.getNumeroTicket(), descripcion);
     }
+
+  /*  private void mapearTicketEntity() {
+       /* ticket.setEstado(EstadoTicket.ERROR);
+        ticket.setErrorDescripcion(descripcion);*/
+     /*   log.warn("Ticket {} ERROR: {}", ticket.getNumeroTicket(), descripcion);
+    }*/
 }
