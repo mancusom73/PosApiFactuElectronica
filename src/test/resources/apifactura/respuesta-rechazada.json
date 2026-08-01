@@ -1,0 +1,14 @@
+{
+  "error": "S",
+  "errores": [
+    "10015 - Factura B: (CUIT 20123456789) no se encuentra habilitado para emitir el comprobante solicitado",
+    "10063 - El importe total no coincide con la suma de los importes de los conceptos informados"
+  ],
+  "cae": null,
+  "cae_vencimiento": null,
+  "comprobante_nro": null,
+  "comprobante_pdf_b64": null,
+  "comprobante_pdf_url": null,
+  "afip_qr": null,
+  "afip_codigo_barras": null
+}

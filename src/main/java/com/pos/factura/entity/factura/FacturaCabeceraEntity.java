@@ -122,13 +122,14 @@ public class FacturaCabeceraEntity {
     // ── Respuesta de AFIP ────────────────────────────────────────────────────
 
     /**
-     * PENDIENTE = antes de llamar a la API
-     * ENVIADO   = JSON enviado, esperando respuesta
-     * APROBADO  = CAE obtenido
-     * RECHAZADO = AFIP rechazó el comprobante
-     * ERROR     = error de comunicación
+     * PENDIENTE                  = antes de llamar a la API
+     * ENVIADO                    = JSON enviado, esperando respuesta
+     * APROBADO                   = CAE obtenido
+     * APROBADO_CON_OBSERVACIONES = CAE obtenido, con observaciones de AFIP
+     * RECHAZADO                  = AFIP rechazó el comprobante
+     * ERROR                      = error de comunicación
      */
-    @Column(name = "estado", nullable = false, length = 15)
+    @Column(name = "estado", nullable = false, length = 30)
     private String estado = "PENDIENTE";
 
     /** Código de Autorización Electrónico devuelto por AFIP */

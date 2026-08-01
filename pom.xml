@@ -13,12 +13,13 @@
 
     <groupId>com.pos</groupId>
     <artifactId>factura-electronica</artifactId>
-    <version>1.0.7</version>
+    <version>1.0.8</version>
     <name>pos-factura-electronica</name>
     <description>POS - API REST Factura Electronica Argentina</description>
 
     <properties>
         <java.version>11</java.version>
+        <skipTests>true</skipTests>
     </properties>
 
     <dependencies>

@@ -38,6 +38,7 @@ public class TicketFacturacionService {
 
     private static final Logger log = LoggerFactory.getLogger(TicketFacturacionService.class);
     private static final DateTimeFormatter FMT_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final int ERROR_DESCRIPCION_MAX_LENGTH = 1000;
 
     private final TicketRepository ticketRepository;
     private final ClienteRepository clienteRepository;
@@ -75,7 +76,7 @@ public class TicketFacturacionService {
     }
 
     @Transactional("posfeTransactionManager")
-    public FacturaResponse facturar(TicketEntity ticket, List<EvCont> evCont) {
+    public FacturaResponse facturar(TicketEntity ticket) {
         log.info("Iniciando facturación del ticket ID: {}", ticket.getId());
         return procesarFacturacion(ticket);
     }
@@ -190,8 +191,15 @@ public class TicketFacturacionService {
 
     private void marcarError(TicketEntity ticket, String descripcion) {
         ticket.setEstado(EstadoTicket.ERROR);
-        ticket.setErrorDescripcion(descripcion);
+        ticket.setErrorDescripcion(truncarErrorDescripcion(descripcion));
         log.warn("Ticket {} ERROR: {}", ticket.getNumeroTicket(), descripcion);
+    }
+
+    private String truncarErrorDescripcion(String descripcion) {
+        if (descripcion != null && descripcion.length() > ERROR_DESCRIPCION_MAX_LENGTH) {
+            return descripcion.substring(0, ERROR_DESCRIPCION_MAX_LENGTH);
+        }
+        return descripcion;
     }
 
   /*  private void mapearTicketEntity() {

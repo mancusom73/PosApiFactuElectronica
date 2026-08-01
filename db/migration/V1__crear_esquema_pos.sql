@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS productos (
     lista_precios           VARCHAR(50)              DEFAULT 'LISTA GENERAL',
     stock_actual            DECIMAL(10,2)            DEFAULT 0.00,
     activo                  TINYINT(1)      NOT NULL DEFAULT 1,
-    fecha_alta              DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_alta              TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fecha_modificacion      DATETIME,
 
     PRIMARY KEY (id),
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS tickets (
     fecha_facturacion   DATETIME,
     error_descripcion   VARCHAR(1000),
 
-    fecha_alta          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_alta          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fecha_modificacion  DATETIME,
 
     PRIMARY KEY (id),

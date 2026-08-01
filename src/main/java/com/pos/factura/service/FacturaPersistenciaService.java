@@ -46,6 +46,7 @@ public class FacturaPersistenciaService {
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final int ESCALA = 2;
     private static final RoundingMode REDONDEO = RoundingMode.HALF_UP;
+    private static final int ERROR_DESCRIPCION_MAX_LENGTH = 1000;
 
     private final FacturaCabeceraRepository cabeceraRepository;
 
@@ -115,14 +116,19 @@ public class FacturaPersistenciaService {
         cabecera.setFechaRespuestaApi(LocalDateTime.now());
 
         if (apiResponse.isExitoso()) {
-            cabecera.setEstado("APROBADO");
+            boolean tieneObservaciones = apiResponse.getErrores() != null
+                    && apiResponse.getErrores().length > 0;
+
+            cabecera.setEstado(tieneObservaciones ? "APROBADO_CON_OBSERVACIONES" : "APROBADO");
             cabecera.setCae(apiResponse.getCae());
             cabecera.setNumeroComprobante(apiResponse.getComprobanteNro());
             cabecera.setPdfUrl(apiResponse.getComprobantePdfUrl());
             cabecera.setPdfBase64(apiResponse.getComprobantePdfB64());
             cabecera.setAfipQr(apiResponse.getAfipQr());
             cabecera.setAfipCodigoBarras(apiResponse.getAfipCodigoBarras());
-            cabecera.setErrorDescripcion(null);
+            cabecera.setErrorDescripcion(tieneObservaciones
+                    ? truncarErrorDescripcion(String.join(" | ", apiResponse.getErrores()))
+                    : null);
 
             if (apiResponse.getCaeVencimiento() != null) {
                 try {
@@ -143,7 +149,7 @@ public class FacturaPersistenciaService {
                     : "Error desconocido";
 
             cabecera.setEstado("RECHAZADO");
-            cabecera.setErrorDescripcion(errores);
+            cabecera.setErrorDescripcion(truncarErrorDescripcion(errores));
 
             log.warn("Cabecera ID={} marcada como RECHAZADA: {}", cabeceraId, errores);
         }
@@ -163,10 +169,17 @@ public class FacturaPersistenciaService {
         cabeceraRepository.findById(cabeceraId).ifPresent(cabecera -> {
             cabecera.setEstado("ERROR");
             cabecera.setFechaRespuestaApi(LocalDateTime.now());
-            cabecera.setErrorDescripcion(mensajeError);
+            cabecera.setErrorDescripcion(truncarErrorDescripcion(mensajeError));
             cabeceraRepository.save(cabecera);
             log.warn("Cabecera ID={} marcada como ERROR: {}", cabeceraId, mensajeError);
         });
+    }
+
+    private String truncarErrorDescripcion(String descripcion) {
+        if (descripcion != null && descripcion.length() > ERROR_DESCRIPCION_MAX_LENGTH) {
+            return descripcion.substring(0, ERROR_DESCRIPCION_MAX_LENGTH);
+        }
+        return descripcion;
     }
 
     // =========================================================================

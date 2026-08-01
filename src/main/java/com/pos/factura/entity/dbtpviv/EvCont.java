@@ -55,6 +55,7 @@ public class EvCont {
     @Column(name = "CANTIDAD")
     private Float cantidad;
 
+    //este tieen el precio sin iva + iva en la ev_cont
     @Column(name = "PRECIO_UNITARIO")
     private Double precioUnitario;
 
@@ -72,5 +73,23 @@ public class EvCont {
 
     @Column(name = "COD_CLASIFICACION")
     private String codClasificacion;
+
+    @Column(name = "IMPORTE_SIN_IVA")
+    private Double importeSinIva;
+
+    @Column(name = "IMP_INT")
+    private Double impInt;
+
+    @Column(name = "EXENTO")
+    private Double exento;
+
+    @Column(name = "IVA1")
+    private Double iva1;
+
+    @Column(name = "IVA2")
+    private Double iva2;
+
+    @Column(name = "ORIGEN")
+    private Byte origen;
 
 }

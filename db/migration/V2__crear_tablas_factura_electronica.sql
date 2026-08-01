@@ -50,8 +50,8 @@ CREATE TABLE IF NOT EXISTS factura_cabecera (
     cliente_envia_por_mail  CHAR(1)                  DEFAULT 'N',
 
     -- Estado del proceso con AFIP
-    -- Valores: PENDIENTE, ENVIADO, APROBADO, RECHAZADO, ERROR
-    estado                  VARCHAR(15)     NOT NULL DEFAULT 'PENDIENTE',
+    -- Valores: PENDIENTE, ENVIADO, APROBADO, APROBADO_CON_OBSERVACIONES, RECHAZADO, ERROR
+    estado                  VARCHAR(30)     NOT NULL DEFAULT 'PENDIENTE',
 
     -- Respuesta de AFIP (se completa despues de llamar a la API)
     cae                     VARCHAR(20),
@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS factura_cabecera (
     numero_ticket_pos       VARCHAR(20),
     fecha_envio_api         DATETIME,
     fecha_respuesta_api     DATETIME,
-    fecha_alta              DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_alta              TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fecha_modificacion      DATETIME,
 
     PRIMARY KEY (id),

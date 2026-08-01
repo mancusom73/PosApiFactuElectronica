@@ -6,6 +6,7 @@ import com.pos.factura.entity.dbtpviv.EvMedios;
 import com.pos.factura.entity.dbtpviv.Evento;
 import com.pos.factura.entity.posfe.TicketEntity;
 import com.pos.factura.mapper.TicketMapper;
+import com.pos.factura.repository.TicketRepository;
 import com.pos.factura.repository.dbtpviv.EvContRepository;
 import com.pos.factura.repository.dbtpviv.EventoRepository;
 import com.pos.factura.repository.dbtpviv.EvMediosRepository;
@@ -24,13 +25,15 @@ public class EventoService {
     private final EvContRepository evcontRepository;
     private final EvMediosRepository evmediosRepository;
     private final TicketFacturacionService ticketFacturacionService;
+    private final TicketRepository ticketRepository;
     private static final Logger log = LoggerFactory.getLogger(EventoService.class);
 
-    public EventoService(EventoRepository repository, EvContRepository evcontRepository, EvMediosRepository evmediosRepository, FacturaService facturaService, TicketFacturacionService ticketFacturacionService) {
+    public EventoService(EventoRepository repository, EvContRepository evcontRepository, EvMediosRepository evmediosRepository, FacturaService facturaService, TicketFacturacionService ticketFacturacionService, TicketRepository ticketRepository) {
         this.eventoRepository = repository;
         this.evcontRepository =evcontRepository;
         this.evmediosRepository = evmediosRepository;
         this.ticketFacturacionService = ticketFacturacionService;
+        this.ticketRepository = ticketRepository;
     }
 
    /* public Evento buscar(Integer cajaZ,Integer idEvento) {
@@ -53,20 +56,15 @@ public class EventoService {
         List<EvMedios> evMedios = this.buscarEvMedios(ticket.getCajaZ(), ticket.getIdEvento());
         //TODO MAPEAR TODO DESDE DBTPVIV A posfe
         TicketEntity ticketCabecera = TicketMapper.mapEventoTicketEntity(ticket, evCont);
+        ticketCabecera.setPagos(TicketMapper.mapEvMediosToPagos(evMedios, ticketCabecera));
+        ticketCabecera = ticketRepository.save(ticketCabecera);
 
-        //return ticket;
-        return ticketFacturacionService.facturar(ticketCabecera,evCont);
+        return ticketFacturacionService.facturar(ticketCabecera);
     }
     @Transactional("dbtpvivTransactionManager")
     public List<EvCont> buscarEvCont(Long cajaZ,Long idEvento) {
         log.info("Iniciando la busqueda del ev_cont: {}");
-//        Long cajaZ = Long.valueOf(1100172);
-//        Long id_evento =   Long.valueOf(2);
         List<EvCont>  evCont= evcontRepository.findByCajaZAndIdEvento(cajaZ,idEvento);
-        //findTopByOrderByCajaZAndIdIdEventoDesc();
-/*                .orElseThrow(() -> new NoSuchElementException(
-                        "No se encontró el ticket ID: "));*/
-        //     ticketRepository.findConPagosById(ticketId);
         return evCont;
 
     }

@@ -4,6 +4,7 @@ import com.pos.factura.dto.SolicitudFacturaRequest;
 import com.pos.factura.entity.dbtpviv.ArticuloEntity;
 import com.pos.factura.entity.dbtpviv.ClienteEntity;
 import com.pos.factura.entity.dbtpviv.EvCont;
+import com.pos.factura.entity.dbtpviv.EvMedios;
 import com.pos.factura.entity.dbtpviv.Evento;
 import com.pos.factura.entity.posfe.TicketEntity;
 import com.pos.factura.entity.posfe.TicketItemEntity;
@@ -246,5 +247,35 @@ public class TicketMapper {
         TicketEntity ticket = TicketTestDataBuilder.notaCreditoB();*/
         TicketEntity tEntity = eventoMapper.toTicketEntity(ev, evCont);
         return tEntity;
+    }
+
+    /**
+     * Mapea los medios de pago del evento (ev_medios de DBTPVIV) a TicketPagoEntity.
+     */
+    public static List<TicketPagoEntity> mapEvMediosToPagos(List<EvMedios> evMedios, TicketEntity ticket) {
+        if (evMedios == null) return new ArrayList<>();
+        return evMedios.stream()
+                .map(em -> {
+                    TicketPagoEntity pago = new TicketPagoEntity();
+                    pago.setTicket(ticket);
+                    pago.setDescripcion(mapModoPago(em.getModoPago()));
+                    pago.setImporte(em.getImporte() != null
+                            ? java.math.BigDecimal.valueOf(em.getImporte())
+                            : java.math.BigDecimal.ZERO);
+                    return pago;
+                })
+                .collect(Collectors.toList());
+    }
+
+    /** Ajustar según los valores reales de MODO_PAGO en tu BD */
+    private static String mapModoPago(Short modoPago) {
+        if (modoPago == null) return "Efectivo";
+        switch (modoPago) {
+            case 1: return "Efectivo";
+            case 2: return "Tarjeta de Debito";
+            case 3: return "Tarjeta de Credito";
+            case 4: return "Transferencia";
+            default: return "Otro";
+        }
     }
 }

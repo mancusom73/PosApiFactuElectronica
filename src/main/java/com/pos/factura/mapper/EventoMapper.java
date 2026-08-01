@@ -11,6 +11,7 @@ import com.pos.factura.entity.posfe.TicketItemEntity;
 import com.pos.factura.entity.posfe.TicketPagoEntity;
 import com.pos.factura.model.*;
 import com.pos.factura.repository.dbtpviv.ArticuloRepository;
+import com.pos.factura.repository.dbtpviv.EvBPromoRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -43,9 +44,24 @@ public class EventoMapper {
     private static final Logger log = LoggerFactory.getLogger(EventoMapper.class);
 
     private final ArticuloRepository articuloRepository;
+    private final EvBPromoRepository evBPromoRepository;
 
-    public EventoMapper(ArticuloRepository articuloRepository) {
+    public EventoMapper(ArticuloRepository articuloRepository, EvBPromoRepository evBPromoRepository) {
         this.articuloRepository = articuloRepository;
+        this.evBPromoRepository = evBPromoRepository;
+    }
+
+    /**
+     * Busca en ev_bpromo el registro (COD_ART, B_PROMO=1) que marca el artículo con descuento,
+     * toma su ID_GRUPO y busca el registro hermano (mismo ID_GRUPO, B_PROMO=101) que contiene
+     * el descuento en PRECIO_FIJO.
+     */
+    public Double obtenerPrecioFijoDescuento(Long cajaZ, Long idEvento, Integer codArt) {
+        return evBPromoRepository
+                .findIdGrupoByCajaZAndIdEventoAndCodArtAndBpromo(cajaZ, idEvento, codArt, (short) 1)
+                .flatMap(idGrupo -> evBPromoRepository
+                        .findPrecioFijoByCajaZAndIdEventoAndIdGrupoAndBpromo(cajaZ, idEvento, idGrupo, (short) 101))
+                .orElse(null);
     }
 
     public SolicitudFacturaRequest toSolicitud(Evento evento, ClienteEntity cliente, List<EvCont> evCont) {
@@ -211,11 +227,10 @@ public class EventoMapper {
     private double mapCodIvaAAlicuota(Integer codIva) {
         if (codIva == null) return 21.0;
         switch (codIva) {
-            case 1: return 21.0;
-            case 2: return 10.5;
-            case 3: return 0.0;
+            case 0: return 21.0;
+            case 1: return 10.5;
+            case 2: return 0.0;
             case 4: return 0.0;
-            case 5: return 27.0;
             default: return 21.0;
         }
     }
@@ -242,6 +257,7 @@ public class EventoMapper {
         TicketEntity ticket = new TicketEntity();
 
         // ── Identificación ────────────────────────────────────────────────────
+        // deberia venir en la eventos scado de factumem
         ticket.setNumeroTicket("EV-" + evento.getCajaZ() + "-" + evento.getIdEvento());
 
         // ── Tipo de comprobante ───────────────────────────────────────────────
@@ -292,7 +308,7 @@ public class EventoMapper {
 
         // ── Items desde ev_cont ───────────────────────────────────────────────
         if (evCont != null && !evCont.isEmpty()) {
-            List<TicketItemEntity> items = mapItemsToTicket(evCont, ticket);
+            List<TicketItemEntity> items = mapItemsToTicket(evCont, evento.getCajaZ(), evento.getIdEvento(), ticket);
             ticket.setItems(items);
         }
 
@@ -302,11 +318,15 @@ public class EventoMapper {
     /**
      * Convierte los EvCont del evento en TicketItemEntity para el ticket.
      */
-        private List<TicketItemEntity> mapItemsToTicket(List<EvCont> evCont, TicketEntity ticket)  {
+        private List<TicketItemEntity> mapItemsToTicket(List<EvCont> evCont, Long cajaZ, Long idEvento, TicketEntity ticket)  {
         List<TicketItemEntity> items = new ArrayList<>();
         int orden = 1;
 
         for (EvCont ec : evCont) {
+            if (ec.getOrigen() != null && ec.getOrigen() == (byte) 4) {
+                continue;
+            }
+
             TicketItemEntity item = new TicketItemEntity();
             item.setTicket(ticket);
             item.setOrden(orden++);
@@ -320,8 +340,8 @@ public class EventoMapper {
                     : BigDecimal.ONE);
 
             // PRECIO_UNITARIO → precioUnitarioSinIva (precio histórico de la venta)
-            item.setPrecioUnitarioSinIva(ec.getPrecioUnitario() != null
-                    ? BigDecimal.valueOf(ec.getPrecioUnitario()).setScale(2, java.math.RoundingMode.HALF_UP)
+            item.setPrecioUnitarioSinIva(ec.getImporteSinIva() != null
+                    ? BigDecimal.valueOf(ec.getImporteSinIva()).setScale(2, java.math.RoundingMode.HALF_UP)
                     : BigDecimal.ZERO);
 
             // Alícuota IVA desde el artículo en DBTPVIV
@@ -337,9 +357,12 @@ public class EventoMapper {
             }
             item.setAlicuotaIva(BigDecimal.valueOf(alicuota));
 
-            // DESCUENTO → bonificacionPorcentaje
-            item.setBonificacionPorcentaje(ec.getDescuento() != null
-                    ? BigDecimal.valueOf(ec.getDescuento()).setScale(2, java.math.RoundingMode.HALF_UP)
+            // DESCUENTO → bonificacionPorcentaje (resuelto vía ev_bpromo, no viene en ev_cont)
+            Double precioFijoDescuento = ec.getCodArticulo() != null
+                    ? obtenerPrecioFijoDescuento(cajaZ, idEvento, ec.getCodArticulo())
+                    : null;
+            item.setBonificacionPorcentaje(precioFijoDescuento != null
+                    ? BigDecimal.valueOf(precioFijoDescuento).setScale(2, java.math.RoundingMode.HALF_UP)
                     : BigDecimal.ZERO);
 
             item.setAfectaStock("S");
@@ -348,7 +371,29 @@ public class EventoMapper {
             items.add(item);
         }
 
+        Double descuentoTicket = obtenerDescuentoTicket(cajaZ, idEvento); //3383.375
+        if (descuentoTicket != null && descuentoTicket != 0 && !items.isEmpty()) {
+            BigDecimal descuentoProrrateado = BigDecimal.valueOf(descuentoTicket)
+                    .divide(BigDecimal.valueOf(items.size()), 2, java.math.RoundingMode.HALF_UP);
+            for (TicketItemEntity item : items) {
+                item.setBonificacionPorcentaje(item.getBonificacionPorcentaje().add(descuentoProrrateado));
+            }
+        }
+
         return items;
+    }
+
+    /**
+     * Busca en ev_bpromo el registro (B_PROMO=4) que marca el descuento del ticket,
+     * toma su ID_GRUPO y busca el registro hermano (mismo ID_GRUPO, B_PROMO=101) que contiene
+     * el descuento en PRECIO_FIJO.
+     */
+    public Double obtenerDescuentoTicket(Long cajaZ, Long idEvento) {
+        return evBPromoRepository
+                .findIdGrupoByCajaZAndIdEventoAndBpromo(cajaZ, idEvento, (short) 4)
+                .flatMap(idGrupo -> evBPromoRepository
+                        .findPrecioFijoByCajaZAndIdEventoAndIdGrupoAndBpromo(cajaZ, idEvento, idGrupo, (short) 101))
+                .orElse(null);
     }
 
     /**
