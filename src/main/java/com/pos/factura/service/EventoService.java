@@ -48,10 +48,6 @@ public class EventoService {
     public FacturaResponse buscarEvento(Long cajaZ, Long idEvento) {
         log.info("Iniciando la busqueda del evento: {}");
         Evento ticket = eventoRepository.findByCajaZAndIdEvento(cajaZ, idEvento);
-                //findTopByOrderByCajaZAndIdIdEventoDesc();
-/*                .orElseThrow(() -> new NoSuchElementException(
-                        "No se encontró el ticket ID: "));*/
-        //     ticketRepository.findConPagosById(ticketId);
         List<EvCont> evCont = this.buscarEvCont(ticket.getCajaZ(), ticket.getIdEvento());
         List<EvMedios> evMedios = this.buscarEvMedios(ticket.getCajaZ(), ticket.getIdEvento());
         //TODO MAPEAR TODO DESDE DBTPVIV A posfe
