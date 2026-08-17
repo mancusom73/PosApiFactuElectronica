@@ -14,9 +14,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -38,7 +40,9 @@ public class TicketFacturacionService {
 
     private static final Logger log = LoggerFactory.getLogger(TicketFacturacionService.class);
     private static final DateTimeFormatter FMT_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter FMT_FECHA_AFIP = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final int ERROR_DESCRIPCION_MAX_LENGTH = 1000;
+    private static final BigDecimal DIFERENCIA_AJUSTABLE = new BigDecimal("0.01");
 
     private final TicketRepository ticketRepository;
     private final ClienteRepository clienteRepository;
@@ -111,6 +115,8 @@ public class TicketFacturacionService {
         ClienteEntity cliente = clienteRepository.findById(ticket.getCodCliente())
                 .orElseGet(() -> clienteGenerico(ticket.getCodCliente()));
         //Ojo que hay que controlar ciertos montos para que si o si se identifique el cliente El límite de $10.000.000 para cualquier medio de pago
+        ajustarTotalPorRedondeo(ticket);
+        ticketRepository.save(ticket);
         try {
             SolicitudFacturaRequest solicitud = ticketMapper.toSolicitud(ticket, cliente);
 
@@ -184,9 +190,29 @@ public class TicketFacturacionService {
         ticket.setTotal(respuesta.getTotal());
         ticket.setErrorDescripcion(null);
         if (respuesta.getCaeVencimiento() != null) {
-            ticket.setCaeVencimiento(LocalDate.parse(respuesta.getCaeVencimiento(), FMT_FECHA));
+            ticket.setCaeVencimiento(parseCaeVencimiento(respuesta.getCaeVencimiento()));
         }
         log.info("Ticket {} FACTURADO — CAE: {}", ticket.getNumeroTicket(), respuesta.getCae());
+    }
+
+    /**
+     * Si el total difiere de neto + iva + exentos por exactamente $0.01 (redondeo
+     * de la respuesta de AFIP), ajusta el total a la sumatoria antes de grabar.
+     */
+    private void ajustarTotalPorRedondeo(TicketEntity ticket) {
+        BigDecimal suma = ticket.getNetoGravado().add(ticket.getIvaTotal()).add(ticket.getExentos());
+        BigDecimal diferencia = ticket.getTotal().subtract(suma).abs();
+        if (diferencia.compareTo(DIFERENCIA_AJUSTABLE) == 0) {
+            ticket.setTotal(suma);
+        }
+    }
+
+    private LocalDate parseCaeVencimiento(String valor) {
+        try {
+            return LocalDate.parse(valor, FMT_FECHA_AFIP);
+        } catch (DateTimeParseException ex) {
+            return LocalDate.parse(valor, FMT_FECHA);
+        }
     }
 
     private void marcarError(TicketEntity ticket, String descripcion) {

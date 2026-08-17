@@ -26,7 +26,7 @@ import java.util.Map;
 @Component
 public class CalculadorComprobante {
 
-    private static final int ESCALA = 2;
+    private static final int ESCALA = 4;
     private static final RoundingMode REDONDEO = RoundingMode.HALF_UP;
 
     /**
@@ -89,7 +89,7 @@ public class CalculadorComprobante {
         BigDecimal total = netoGravadoTotal
                 .add(ivaTotal)
                 .add(exentosTotal)
-                .subtract(descuentoGeneral)
+   //             .subtract(descuentoGeneral) //el descuento se incluye como item extra por eso se sumariza con el resto
                 .setScale(ESCALA, REDONDEO);
 
         // 7. Asignar resultados

@@ -233,7 +233,7 @@ public class EventoMapper {
                     ? art.getNombre() : "SIN DESCRIPCION");
             producto.setUnidadMedida(TicketMapper.mapUnidadMedida(art.getUnidad()));
             // Alícuota desde el artículo
-            producto.setAlicuota(mapCodIvaAAlicuota(art.getCodIva()));
+            producto.setAlicuota(mapCodIvaAAlicuota(art.getCodIva(), art.getGravado()));
         } else {
             log.warn("Artículo COD_INTERNO={} no encontrado en DBTPVIV", ec.getCodArticulo());
             producto.setCodigo(ec.getCodArticulo() != null
@@ -254,8 +254,9 @@ public class EventoMapper {
     }
 
     /** Ajustar según la tabla de IVA de tu sistema */
-    private double mapCodIvaAAlicuota(Integer codIva) {
+    private double mapCodIvaAAlicuota(Integer codIva, String gravado) {
         if (codIva == null) return 21.0;
+        if( gravado.compareToIgnoreCase("N") == 0 ) codIva = 2;
         switch (codIva) {
             case 0: return 21.0;
             case 1: return 10.5;
@@ -365,7 +366,7 @@ public class EventoMapper {
                     && !codArticulosEnPromo.contains(ec.getCodArticulo())
                     && ec.getOrigen() != (byte) 4) {
                 BigDecimal precioSinIva = ec.getImporteSinIva() != null
-                        ? BigDecimal.valueOf(ec.getImporteSinIva()) : BigDecimal.ZERO;
+                        ? BigDecimal.valueOf(ec.getImporteSinIva() + ec.getExento()) : BigDecimal.ZERO;
                 BigDecimal iva = BigDecimal.ZERO;
                 if (ec.getIva1() != null) {
                     iva = iva.add(BigDecimal.valueOf(ec.getIva1()));
@@ -394,10 +395,12 @@ public class EventoMapper {
                     ? BigDecimal.valueOf(ec.getCantidad()).setScale(2, java.math.RoundingMode.HALF_UP)
                     : BigDecimal.ONE);
 
-            // PRECIO_UNITARIO → precioUnitarioSinIva (precio histórico de la venta)
-            item.setPrecioUnitarioSinIva(ec.getImporteSinIva() != null
-                    ? BigDecimal.valueOf(ec.getImporteSinIva()).setScale(2, java.math.RoundingMode.HALF_UP)
-                    : BigDecimal.ZERO);
+            // PRECIO_UNITARIO → precioUnitarioSinIva (precio histórico de la venta, incluye exento)
+            BigDecimal importeSinIvaItem = ec.getImporteSinIva() != null
+                    ? BigDecimal.valueOf(ec.getImporteSinIva()) : BigDecimal.ZERO;
+            BigDecimal exentoItem = ec.getExento() != null
+                    ? BigDecimal.valueOf(ec.getExento()) : BigDecimal.ZERO;
+            item.setPrecioUnitarioSinIva(importeSinIvaItem.add(exentoItem).setScale(2, java.math.RoundingMode.HALF_UP));
 
             // Alícuota IVA desde el artículo en DBTPVIV
             double alicuota = 21.0; // default
@@ -405,7 +408,7 @@ public class EventoMapper {
                 Optional<ArticuloEntity> artOpt =
                         articuloRepository.findActivoByCodInterno(ec.getCodArticulo());
                 if (artOpt.isPresent()) {
-                    alicuota = mapCodIvaAAlicuota(artOpt.get().getCodIva());
+                    alicuota = mapCodIvaAAlicuota(artOpt.get().getCodIva(),artOpt.get().getGravado() );
                 } else {
                     log.warn("Artículo COD_INTERNO={} no encontrado al mapear TicketItem", ec.getCodArticulo());
                 }

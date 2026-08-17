@@ -297,7 +297,7 @@ public class ValidadorComprobante {
             return;
         }
 
-        BigDecimal totalCalculado = neto.add(iva).add(exentos).subtract(bonif)
+        BigDecimal totalCalculado = neto.add(iva).add(exentos)
                 .setScale(2, RoundingMode.HALF_UP);
 
         BigDecimal diferencia = totalDecl.subtract(totalCalculado).abs();

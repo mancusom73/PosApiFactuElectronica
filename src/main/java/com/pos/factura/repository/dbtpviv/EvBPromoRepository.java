@@ -88,7 +88,7 @@ public interface EvBPromoRepository
     );
 
     @Query("SELECT DISTINCT e.codArt FROM EvBPromo e " +
-           "WHERE e.cajaZ = :cajaZ AND e.idEvento = :idEvento")
+           "WHERE e.cajaZ = :cajaZ AND e.idEvento = :idEvento AND e.codArt > 0")
     List<Integer> findCodArtByCajaZAndIdEvento(
             @Param("cajaZ") Long cajaZ,
             @Param("idEvento") Long idEvento
