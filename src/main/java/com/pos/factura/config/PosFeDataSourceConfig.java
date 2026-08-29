@@ -75,12 +75,12 @@ public class PosFeDataSourceConfig {
 
         HibernateJpaVendorAdapter vendorAdapter = new HibernateJpaVendorAdapter();
         vendorAdapter.setGenerateDdl(false);
-        vendorAdapter.setShowSql(true);
+        vendorAdapter.setShowSql(false);
 
         Properties jpaProps = new Properties();
         jpaProps.setProperty("hibernate.hbm2ddl.auto",  "validate");
         jpaProps.setProperty("hibernate.dialect",        "org.hibernate.dialect.MySQL5InnoDBDialect");
-        jpaProps.setProperty("hibernate.show_sql",       "true");
+        jpaProps.setProperty("hibernate.show_sql",       "false");
         jpaProps.setProperty("hibernate.format_sql",     "true");
 
         LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();

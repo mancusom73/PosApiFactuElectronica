@@ -88,6 +88,9 @@ public class TicketEntity {
     @Column(name = "bonificacion", precision = 12, scale = 2)
     private BigDecimal bonificacion = BigDecimal.ZERO;
 
+    @Column(name = "percepcion", precision = 12, scale = 2)
+    private BigDecimal percepcion = BigDecimal.ZERO;
+
     @Column(name = "total", nullable = false, precision = 12, scale = 2)
     private BigDecimal total = BigDecimal.ZERO;
 

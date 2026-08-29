@@ -4,6 +4,8 @@ import com.pos.factura.exception.FacturaValidationException;
 import com.pos.factura.model.Cliente;
 import com.pos.factura.model.Comprobante;
 import com.pos.factura.model.DetalleItem;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -31,6 +33,8 @@ import java.util.Set;
  */
 @Component
 public class ValidadorComprobante {
+
+    private static final Logger log = LoggerFactory.getLogger(ValidadorComprobante.class);
 
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
@@ -290,29 +294,86 @@ public class ValidadorComprobante {
         BigDecimal iva        = orCero(comprobante.getIvaTotal());
         BigDecimal exentos    = orCero(comprobante.getExentos());
         BigDecimal bonif      = orCero(comprobante.getBonificacion());
+        BigDecimal percepcion = orCero(comprobante.getPercepcion());
         BigDecimal totalDecl  = comprobante.getTotal();
 
         if (totalDecl == null) {
             errores.add("El total del comprobante no está calculado. Llamar a CalculadorComprobante.calcularTotales() antes de validar");
             return;
         }
+        totalDecl = totalDecl.setScale(2, RoundingMode.HALF_UP);
 
-        BigDecimal totalCalculado = neto.add(iva).add(exentos)
+        BigDecimal totalCalculado = neto.add(iva).add(exentos).add(percepcion)
                 .setScale(2, RoundingMode.HALF_UP);
 
         BigDecimal diferencia = totalDecl.subtract(totalCalculado).abs();
 
+        log.info("Validando cuadre de totales — neto: {} + iva: {} + exentos: {} + percepcion: {} = totalCalculado: {} | bonificacion (no sumada): {} | totalDeclarado: {} | diferencia: {}",
+                neto, iva, exentos, percepcion, totalCalculado, bonif, totalDecl, diferencia);
+
+        logDetalleItems(comprobante, percepcion);
+
         if (diferencia.compareTo(TOLERANCIA_TOTAL) > 0) {
             errores.add(String.format(
-                    "Los totales no cuadran: neto(%.2f) + IVA(%.2f) + exentos(%.2f) - bonificación(%.2f) = %.2f, " +
+                    "Los totales no cuadran: neto(%.2f) + IVA(%.2f) + exentos(%.2f) + percepción(%.2f) - bonificación(%.2f) = %.2f, " +
                     "pero el total declarado es %.2f (diferencia: %.2f)",
-                    neto, iva, exentos, bonif, totalCalculado, totalDecl, diferencia));
+                    neto, iva, exentos, percepcion, bonif, totalCalculado, totalDecl, diferencia));
         }
 
         if (totalDecl.compareTo(BigDecimal.ZERO) <= 0) {
             errores.add(String.format(
                     "El total del comprobante (%.2f) debe ser mayor a cero", totalDecl));
         }
+    }
+
+    /**
+     * Loguea el detalle línea por línea (ticket_items) y su suma, para comparar
+     * a simple vista contra los totales de cabecera calculados arriba.
+     */
+    private void logDetalleItems(Comprobante comprobante,  BigDecimal percepcion) {
+        List<DetalleItem> detalle = comprobante.getDetalle();
+        if (detalle == null || detalle.isEmpty()) return;
+
+        BigDecimal sumaSubtotal = BigDecimal.ZERO;
+        BigDecimal sumaNeto     = BigDecimal.ZERO;
+        BigDecimal sumaIva      = BigDecimal.ZERO;
+        BigDecimal sumaTotal    = BigDecimal.ZERO;
+
+        for (int i = 0; i < detalle.size(); i++) {
+            DetalleItem item = detalle.get(i);
+            if (item.getProducto() == null || item.getProducto().getPrecioUnitarioSinIva() == null
+                    || item.getCantidad() == null) continue;
+
+            BigDecimal precio    = item.getProducto().getPrecioUnitarioSinIva();
+            BigDecimal cantidad  = item.getCantidad();
+            BigDecimal bonifPct  = orCero(item.getBonificacionPorcentaje());
+            Double alicuota      = item.getProducto().getAlicuota() != null ? item.getProducto().getAlicuota() : 0.0;
+
+            BigDecimal subtotal   = precio.multiply(cantidad).setScale(4, RoundingMode.HALF_UP);
+            BigDecimal descuento  = subtotal.multiply(bonifPct.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP))
+                    .setScale(4, RoundingMode.HALF_UP);
+            BigDecimal netoLinea  = subtotal.subtract(descuento);
+            BigDecimal ivaLinea   = netoLinea.multiply(BigDecimal.valueOf(alicuota).divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP))
+                    .setScale(4, RoundingMode.HALF_UP);
+            BigDecimal totalLinea = netoLinea.add(ivaLinea);
+
+            log.info("Item {} — '{}': precio: {} x cantidad: {} = subtotal: {} | bonif%: {} (-{}) | neto: {} | iva({}%): {} | totalLinea: {}",
+                    i + 1, item.getProducto().getCodigo(), precio, cantidad, subtotal,
+                    bonifPct, descuento, netoLinea, alicuota, ivaLinea, totalLinea);
+
+            sumaSubtotal = sumaSubtotal.add(subtotal);
+            sumaNeto     = sumaNeto.add(netoLinea);
+            sumaIva      = sumaIva.add(ivaLinea);
+            sumaTotal    = sumaTotal.add(totalLinea);
+        }
+        sumaTotal    = sumaTotal.add(percepcion);
+
+        log.info("Suma del detalle (ticket_items) — subtotal: {} | neto: {} | iva: {} | Percepcion: {} | totalDetalle: {}",
+                sumaSubtotal.setScale(2, RoundingMode.HALF_UP),
+                sumaNeto.setScale(2, RoundingMode.HALF_UP),
+                sumaIva.setScale(2, RoundingMode.HALF_UP),
+                percepcion,
+                sumaTotal.setScale(2, RoundingMode.HALF_UP));
     }
 
     // =========================================================================
@@ -326,8 +387,8 @@ public class ValidadorComprobante {
             return; // Pagos es opcional
         }
 
-        BigDecimal totalPagos     = orCero(comprobante.getPagos().getTotal());
-        BigDecimal totalComprobante = orCero(comprobante.getTotal());
+        BigDecimal totalPagos     = orCero(comprobante.getPagos().getTotal()).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal totalComprobante = orCero(comprobante.getTotal()).setScale(2, RoundingMode.HALF_UP);
         BigDecimal diferencia     = totalPagos.subtract(totalComprobante).abs();
 
         if (diferencia.compareTo(TOLERANCIA_TOTAL) > 0) {

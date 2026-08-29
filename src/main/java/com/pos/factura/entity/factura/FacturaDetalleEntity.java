@@ -66,7 +66,7 @@ public class FacturaDetalleEntity {
      * Precio neto unitario sin IVA — exactamente como se envió a AFIP.
      * Es el precio histórico al momento de la emisión.
      */
-    @Column(name = "precio_unitario_sin_iva", nullable = false, precision = 12, scale = 2)
+    @Column(name = "precio_unitario_sin_iva", nullable = false, precision = 12, scale = 4)
     private BigDecimal precioUnitarioSinIva;
 
     /** Alícuota de IVA: 0, 10.5 o 21 */
@@ -86,14 +86,14 @@ public class FacturaDetalleEntity {
     // ── Totales calculados de la línea (para auditoría) ──────────────────────
 
     /** cantidad × precio_unitario_sin_iva − descuento */
-    @Column(name = "neto_linea", precision = 12, scale = 2)
+    @Column(name = "neto_linea", precision = 12, scale = 4)
     private BigDecimal netoLinea;
 
     /** neto_linea × (alicuota_iva / 100) */
-    @Column(name = "iva_linea", precision = 12, scale = 2)
+    @Column(name = "iva_linea", precision = 12, scale = 4)
     private BigDecimal ivaLinea;
 
     /** neto_linea + iva_linea */
-    @Column(name = "total_linea", precision = 12, scale = 2)
+    @Column(name = "total_linea", precision = 12, scale = 4)
     private BigDecimal totalLinea;
 }

@@ -76,6 +76,9 @@ public class Comprobante {
     @JsonProperty("bonificacion")
     private BigDecimal bonificacion = BigDecimal.ZERO;
 
+    @JsonProperty("percepcion")
+    private BigDecimal percepcion = BigDecimal.ZERO;
+
     // Campos internos usados para construir el JSON de la API
     // (algunos proveedores los requieren explícitamente)
     @JsonProperty("neto_gravado")

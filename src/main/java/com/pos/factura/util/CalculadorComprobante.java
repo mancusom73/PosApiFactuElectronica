@@ -29,6 +29,9 @@ public class CalculadorComprobante {
     private static final int ESCALA = 4;
     private static final RoundingMode REDONDEO = RoundingMode.HALF_UP;
 
+    // La API de factura electrónica exige los totales con 2 decimales (formato AFIP)
+    private static final int ESCALA_API = 2;
+
     /**
      * Calcula y asigna todos los totales al objeto Comprobante.
      * Debe llamarse ANTES de construir el JSON para la API.
@@ -86,18 +89,22 @@ public class CalculadorComprobante {
                 : BigDecimal.ZERO;
 
         // 6. Total final
+        BigDecimal percepcion = comprobante.getPercepcion() != null
+                ? comprobante.getPercepcion()
+                : BigDecimal.ZERO;
         BigDecimal total = netoGravadoTotal
                 .add(ivaTotal)
                 .add(exentosTotal)
+                .add(percepcion)
    //             .subtract(descuentoGeneral) //el descuento se incluye como item extra por eso se sumariza con el resto
-                .setScale(ESCALA, REDONDEO);
+                .setScale(ESCALA_API, REDONDEO);
 
-        // 7. Asignar resultados
-        comprobante.setNetoGravado(netoGravadoTotal.setScale(ESCALA, REDONDEO));
-        comprobante.setIvaTotal(ivaTotal.setScale(ESCALA, REDONDEO));
-        comprobante.setExentos(exentosTotal.setScale(ESCALA, REDONDEO));
+        // 7. Asignar resultados (redondeados a 2 decimales: formato exigido por la API de factura electrónica)
+        comprobante.setNetoGravado(netoGravadoTotal.setScale(ESCALA_API, REDONDEO));
+        comprobante.setIvaTotal(ivaTotal.setScale(ESCALA_API, REDONDEO));
+        comprobante.setExentos(exentosTotal.setScale(ESCALA_API, REDONDEO));
         comprobante.setTotal(total);
-        comprobante.setIvaPorAlicuota(ivaPorAlicuota);
+        comprobante.setIvaPorAlicuota(redondearIvaPorAlicuota(ivaPorAlicuota));
     }
 
     /**
@@ -110,8 +117,14 @@ public class CalculadorComprobante {
         BigDecimal totalPagos = pagos.getFormasPago().stream()
                 .map(fp -> fp.getImporte() != null ? fp.getImporte() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .setScale(ESCALA, REDONDEO);
+                .setScale(ESCALA_API, REDONDEO);
 
         pagos.setTotal(totalPagos);
+    }
+
+    private Map<Double, BigDecimal> redondearIvaPorAlicuota(Map<Double, BigDecimal> ivaPorAlicuota) {
+        Map<Double, BigDecimal> redondeado = new LinkedHashMap<>();
+        ivaPorAlicuota.forEach((alicuota, importe) -> redondeado.put(alicuota, importe.setScale(ESCALA_API, REDONDEO)));
+        return redondeado;
     }
 }

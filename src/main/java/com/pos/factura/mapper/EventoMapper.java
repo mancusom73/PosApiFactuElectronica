@@ -18,7 +18,9 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -167,6 +169,9 @@ public class EventoMapper {
         comprobante.setRubro("Venta de mercaderia");
         comprobante.setNumero("0");
         comprobante.setBonificacion(BigDecimal.ZERO);
+        comprobante.setPercepcion(evento.getPercepcionDgi() != null
+                ? BigDecimal.valueOf(evento.getPercepcionDgi()).setScale(2, java.math.RoundingMode.HALF_UP)
+                : BigDecimal.ZERO);
 
         // Items desde ev_cont
         comprobante.setDetalle(mapItems(evCont));
@@ -327,10 +332,15 @@ public class EventoMapper {
                 ? BigDecimal.valueOf(evento.getExento()).setScale(2, java.math.RoundingMode.HALF_UP)
                 : BigDecimal.ZERO);
 
-        // Total = neto + IVA + exento
+        ticket.setPercepcion(evento.getPercepcionDgi() != null
+                ? BigDecimal.valueOf(evento.getPercepcionDgi()).setScale(2, java.math.RoundingMode.HALF_UP)
+                : BigDecimal.ZERO);
+
+        // Total = neto + IVA + exento + percepcion
         ticket.setTotal(ticket.getNetoGravado()
                 .add(ticket.getIvaTotal())
                 .add(ticket.getExentos())
+                .add(ticket.getPercepcion())
                 .setScale(2, java.math.RoundingMode.HALF_UP));
 
         // ── Estado ────────────────────────────────────────────────────────────
@@ -378,8 +388,31 @@ public class EventoMapper {
             }
         }
 
+        Map<String, TicketItemEntity> itemsPorClaveOrigen1 = new HashMap<>();
         for (EvCont ec : evCont) {
             if (ec.getOrigen() != null && ec.getOrigen() == (byte) 4) {
+                continue;
+            }
+
+            // CANTIDAD: Float → BigDecimal
+            BigDecimal cantidadEc = ec.getCantidad() != null
+                    ? BigDecimal.valueOf(ec.getCantidad()).setScale(2, java.math.RoundingMode.HALF_UP)
+                    : BigDecimal.ONE;
+
+            // PRECIO_UNITARIO → precioUnitarioSinIva (precio histórico de la venta, incluye exento)
+            BigDecimal importeSinIvaItem = ec.getImporteSinIva() != null
+                    ? BigDecimal.valueOf(ec.getImporteSinIva()) : BigDecimal.ZERO;
+            BigDecimal exentoItem = ec.getExento() != null
+                    ? BigDecimal.valueOf(ec.getExento()) : BigDecimal.ZERO;
+
+            boolean esOrigen1 = ec.getOrigen() != null && ec.getOrigen() == (byte) 1;
+            String claveItem = ec.getCodArticulo() + "|" + ec.getCodBarra();
+            if (esOrigen1 && itemsPorClaveOrigen1.containsKey(claveItem)) {
+                TicketItemEntity itemExistente = itemsPorClaveOrigen1.get(claveItem);
+                itemExistente.setCantidad(itemExistente.getCantidad().add(cantidadEc));
+                itemExistente.setPrecioUnitarioSinIva(itemExistente.getPrecioUnitarioSinIva()
+                        .add(importeSinIvaItem).add(exentoItem)
+                        .setScale(2, java.math.RoundingMode.HALF_UP));
                 continue;
             }
 
@@ -390,17 +423,13 @@ public class EventoMapper {
             // COD_ARTICULO → codInterno
             item.setCodInterno(ec.getCodArticulo());
 
-            // CANTIDAD: Float → BigDecimal
-            item.setCantidad(ec.getCantidad() != null
-                    ? BigDecimal.valueOf(ec.getCantidad()).setScale(2, java.math.RoundingMode.HALF_UP)
-                    : BigDecimal.ONE);
+            item.setCantidad(cantidadEc);
 
-            // PRECIO_UNITARIO → precioUnitarioSinIva (precio histórico de la venta, incluye exento)
-            BigDecimal importeSinIvaItem = ec.getImporteSinIva() != null
-                    ? BigDecimal.valueOf(ec.getImporteSinIva()) : BigDecimal.ZERO;
-            BigDecimal exentoItem = ec.getExento() != null
-                    ? BigDecimal.valueOf(ec.getExento()) : BigDecimal.ZERO;
             item.setPrecioUnitarioSinIva(importeSinIvaItem.add(exentoItem).setScale(2, java.math.RoundingMode.HALF_UP));
+
+            if (esOrigen1) {
+                itemsPorClaveOrigen1.put(claveItem, item);
+            }
 
             // Alícuota IVA desde el artículo en DBTPVIV
             double alicuota = 21.0; // default
@@ -443,7 +472,7 @@ public class EventoMapper {
 
             items.add(item);
         }
-
+        items.removeIf(it -> it.getCantidad().abs().compareTo(BigDecimal.valueOf(0.02)) < 0);
         return items;
     }
 

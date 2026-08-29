@@ -42,7 +42,7 @@ public class TicketItemEntity {
      * Precio unitario sin IVA al momento de la venta.
      * Se almacena para preservar el precio histórico (puede diferir del catálogo).
      */
-    @Column(name = "precio_unitario_sin_iva", nullable = false, precision = 12, scale = 2)
+    @Column(name = "precio_unitario_sin_iva", nullable = false, precision = 12, scale = 4)
     private BigDecimal precioUnitarioSinIva;
 
     /**

@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.math.RoundingMode;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -124,6 +125,7 @@ public class TicketMapper {
         comprobante.setRubro("Venta de mercaderia");
         comprobante.setNumero("0");
         comprobante.setBonificacion(ticket.getBonificacion());
+        comprobante.setPercepcion(ticket.getPercepcion());
         comprobante.setDetalle(mapItems(ticket.getItems()));
         if (ticket.getPagos() != null && !ticket.getPagos().isEmpty()) {
             comprobante.setPagos(mapPagos(ticket.getPagos()));
@@ -141,7 +143,9 @@ public class TicketMapper {
     private DetalleItem mapItem(TicketItemEntity ie) {
         DetalleItem item = new DetalleItem();
         item.setCantidad(ie.getCantidad());
-        item.setBonificacionPorcentaje(ie.getBonificacionPorcentaje());
+        item.setBonificacionPorcentaje(ie.getBonificacionPorcentaje() != null
+                ? ie.getBonificacionPorcentaje().setScale(2, RoundingMode.HALF_UP)
+                : null);
         item.setAfectaStock(ie.getAfectaStock() != null ? ie.getAfectaStock() : "S");
         item.setLeyenda(ie.getLeyenda() != null ? ie.getLeyenda() : "");
         item.setProducto(mapProducto(ie));

@@ -1,13 +1,17 @@
 {
-  "error": "N",
+  "exitoso": true,
+  "mensaje": "Comprobante emitido correctamente con observaciones",
   "errores": [
     "OBS-001 - El domicilio del cliente informado difiere del registrado en Padrón AFIP"
   ],
   "cae": "75312345678902",
-  "cae_vencimiento": "05/08/2026",
-  "comprobante_nro": "00000124",
-  "comprobante_pdf_b64": "JVBERi0xLjQKJcOkw7zDtsO...",
-  "comprobante_pdf_url": "https://api-facturaelectronica.example.com/pdf/00000124.pdf",
-  "afip_qr": "https://www.afip.gob.ar/fe/qr/?p=eyJ2ZXIiOjEsImZlY2hhIjoiMjAyNi0wNy0yNSJ9",
-  "afip_codigo_barras": "202612345678901234567891"
+  "caeVencimiento": "05/08/2026",
+  "comprobanteNro": "00000124",
+  "tipoComprobante": "FACTURA B",
+  "fecha": "25/07/2026",
+  "total": 1000.0,
+  "pdfBase64": "JVBERi0xLjQKJcOkw7zDtsO...",
+  "pdfUrl": "https://api-facturaelectronica.example.com/pdf/00000124.pdf",
+  "afipQr": "https://www.afip.gob.ar/fe/qr/?p=eyJ2ZXIiOjEsImZlY2hhIjoiMjAyNi0wNy0yNSJ9",
+  "afipCodigoBarras": "202612345678901234567891"
 }

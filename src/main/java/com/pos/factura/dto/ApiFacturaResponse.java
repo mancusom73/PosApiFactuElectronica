@@ -12,11 +12,8 @@ import lombok.Data;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ApiFacturaResponse {
 
-    /**
-     * "OK" si la factura fue emitida correctamente, "ERROR" si falló
-     */
-    @JsonProperty("error")
-    private String error;
+    @JsonProperty("exitoso")
+    private boolean exitoso;
 
     @JsonProperty("errores")
     private String[] errores;
@@ -27,37 +24,37 @@ public class ApiFacturaResponse {
     @JsonProperty("cae")
     private String cae;
 
-    @JsonProperty("cae_vencimiento")
+    @JsonProperty("caeVencimiento")
     private String caeVencimiento;
 
     /**
      * Número de comprobante asignado por AFIP
      */
-    @JsonProperty("comprobante_nro")
+    @JsonProperty("comprobanteNro")
     private String comprobanteNro;
 
     /**
      * PDF del comprobante en Base64
      */
-    @JsonProperty("comprobante_pdf_b64")
+    @JsonProperty("pdfBase64")
     private String comprobantePdfB64;
 
     /**
      * URL pública del PDF (algunos proveedores lo ofrecen)
      */
-    @JsonProperty("comprobante_pdf_url")
+    @JsonProperty("pdfUrl")
     private String comprobantePdfUrl;
 
     /**
      * Código QR según normativa AFIP 2024
      */
-    @JsonProperty("afip_qr")
+    @JsonProperty("afipQr")
     private String afipQr;
 
-    @JsonProperty("afip_codigo_barras")
+    @JsonProperty("afipCodigoBarras")
     private String afipCodigoBarras;
 
     public boolean isExitoso() {
-        return error != null && error.equalsIgnoreCase("N");
+        return exitoso;
     }
 }

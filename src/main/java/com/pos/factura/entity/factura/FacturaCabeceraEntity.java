@@ -87,6 +87,9 @@ public class FacturaCabeceraEntity {
     @Column(name = "bonificacion", precision = 12, scale = 2)
     private BigDecimal bonificacion;
 
+    @Column(name = "percepcion", precision = 12, scale = 2)
+    private BigDecimal percepcion;
+
     @Column(name = "total", nullable = false, precision = 12, scale = 2)
     private BigDecimal total;
 

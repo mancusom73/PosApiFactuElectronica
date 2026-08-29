@@ -78,6 +78,9 @@ public class Evento {
 
     @Column(name = "TARJ_CLIE_AFINIDAD")
     private String tarjClieAfinidad;
+
+    @Column(name = "PERCEPCION_DGI")
+    private Double percepcionDgi;
 /*
     @OneToMany(
             mappedBy = "evento",

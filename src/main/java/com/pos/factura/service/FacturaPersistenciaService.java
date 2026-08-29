@@ -204,6 +204,7 @@ public class FacturaPersistenciaService {
         e.setIvaTotal(comp.getIvaTotal());
         e.setExentos(orCero(comp.getExentos()));
         e.setBonificacion(orCero(comp.getBonificacion()));
+        e.setPercepcion(orCero(comp.getPercepcion()));
         e.setTotal(comp.getTotal());
 
         // Cliente (snapshot del momento de la facturación)
