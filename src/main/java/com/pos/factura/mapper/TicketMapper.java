@@ -10,7 +10,15 @@ import com.pos.factura.entity.posfe.TicketEntity;
 import com.pos.factura.entity.posfe.TicketItemEntity;
 import com.pos.factura.entity.posfe.TicketPagoEntity;
 import com.pos.factura.model.*;
+import com.pos.factura.entity.dbtpviv.MedioEntity;
+import com.pos.factura.entity.dbtpviv.MutualEntity;
+import com.pos.factura.entity.dbtpviv.TCompraEntity;
+import com.pos.factura.entity.dbtpviv.TarjetaEntity;
 import com.pos.factura.repository.dbtpviv.ArticuloRepository;
+import com.pos.factura.repository.dbtpviv.MedioRepository;
+import com.pos.factura.repository.dbtpviv.MutualRepository;
+import com.pos.factura.repository.dbtpviv.TCompraRepository;
+import com.pos.factura.repository.dbtpviv.TarjetaRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -44,10 +52,18 @@ public class TicketMapper {
     private static EventoMapper eventoMapper;
 
     private final ArticuloRepository articuloRepository;
+    private final MedioRepository medioRepository;
+    private final MutualRepository mutualRepository;
+    private final TCompraRepository tCompraRepository;
+    private final TarjetaRepository tarjetaRepository;
 
-    public TicketMapper(ArticuloRepository articuloRepository, EventoMapper eventoMapper) {
+    public TicketMapper(ArticuloRepository articuloRepository, EventoMapper eventoMapper, MedioRepository medioRepository, MutualRepository mutualRepository, TCompraRepository tCompraRepository, TarjetaRepository tarjetaRepository) {
         this.articuloRepository = articuloRepository;
         this.eventoMapper = eventoMapper;
+        this.medioRepository = medioRepository;
+        this.mutualRepository = mutualRepository;
+        this.tCompraRepository = tCompraRepository;
+        this.tarjetaRepository = tarjetaRepository;
     }
 
     public SolicitudFacturaRequest toSolicitud(TicketEntity ticket, ClienteEntity cliente) {
@@ -61,8 +77,10 @@ public class TicketMapper {
 
     private Cliente mapCliente(ClienteEntity ce) {
         Cliente cliente = new Cliente();
-        cliente.setDocumentoTipo(mapTipoDocumento(ce.getCodDocumento()));
-        cliente.setDocumentoNro(ce.getNroDocumento());
+        String documentoTipo = mapTipoDocumento(ce.getCodDocumento(), ce.getCuit());
+        cliente.setDocumentoTipo(documentoTipo);
+        cliente.setDocumentoNro("CUIT".equals(documentoTipo) && ce.getCuit() != null
+                ? ce.getCuit() : ce.getNroDocumento());
         cliente.setRazonSocial(ce.getNombre());
         cliente.setDomicilio(ce.getDomicilio());
         cliente.setProvincia(mapProvincia(ce.getProvincia()));
@@ -74,13 +92,15 @@ public class TicketMapper {
     }
 
     /** Ajustar según los valores reales de COD_DOCUMENTO en tu BD */
-    private String mapTipoDocumento(String cod) {
-        if (cod == null) return "DNI";
+    private String mapTipoDocumento(String cod, String cuit) {
+        if (cuit != null && !cuit.trim().isEmpty()) return "CUIT";
+        if (cod == null) return "TIPO DOCU INVALIDO";
         switch (cod.trim().toUpperCase()) {
-            case "D": return "DNI";
-            case "C": return "CUIT";
-            case "L": return "CUIL";
-            case "P": return "PASAPORTE";
+            case "1": return "DNI";
+            case "3": return "CUIT";
+            case "2": return "CUIL";
+            case "4": return "CEDULA";
+            case "5": return "PASAPORTE";
             default:  return "DNI";
         }
     }
@@ -256,13 +276,13 @@ public class TicketMapper {
     /**
      * Mapea los medios de pago del evento (ev_medios de DBTPVIV) a TicketPagoEntity.
      */
-    public static List<TicketPagoEntity> mapEvMediosToPagos(List<EvMedios> evMedios, TicketEntity ticket) {
+    public List<TicketPagoEntity> mapEvMediosToPagos(List<EvMedios> evMedios, TicketEntity ticket) {
         if (evMedios == null) return new ArrayList<>();
         return evMedios.stream()
                 .map(em -> {
                     TicketPagoEntity pago = new TicketPagoEntity();
                     pago.setTicket(ticket);
-                    pago.setDescripcion(mapModoPago(em.getModoPago()));
+                    pago.setDescripcion(mapModoPago(em));
                     pago.setImporte(em.getImporte() != null
                             ? java.math.BigDecimal.valueOf(em.getImporte())
                             : java.math.BigDecimal.ZERO);
@@ -271,15 +291,39 @@ public class TicketMapper {
                 .collect(Collectors.toList());
     }
 
-    /** Ajustar según los valores reales de MODO_PAGO en tu BD */
-    private static String mapModoPago(Short modoPago) {
+    private String mapModoPago(EvMedios em) {
+        Short modoPago = em.getModoPago();
         if (modoPago == null) return "Efectivo";
-        switch (modoPago) {
-            case 1: return "Efectivo";
-            case 2: return "Tarjeta de Debito";
-            case 3: return "Tarjeta de Credito";
-            case 4: return "Transferencia";
-            default: return "Otro";
-        }
+        return medioRepository.findById(modoPago.byteValue())
+                .map(medio -> {
+                    if ("S".equals(medio.getMutual())) return mapMutual(em.getNumeroId());
+                    if ("S".equals(medio.getTarjCred())) return mapTarjeta(em.getNumeroId());
+                    if ("S".equals(medio.getTCompra())) return mapTCompra(em.getNumeroId());
+                    if ("S".equals(medio.getEfectivo())) return "EFECTIVO";
+                    if ("S".equals(medio.getCtacte())) return "CTA CTE";
+                    return medio.getNombre();
+                })
+                .orElse("Otro");
+    }
+
+    private String mapMutual(Integer numeroId) {
+        if (numeroId == null) return "Mutual";
+        return mutualRepository.findById(numeroId.byteValue())
+                .map(MutualEntity::getDesMutual)
+                .orElse("Mutual");
+    }
+
+    private String mapTCompra(Integer numeroId) {
+        if (numeroId == null) return "T_COMPRA";
+        return tCompraRepository.findById(numeroId.byteValue())
+                .map(TCompraEntity::getDesTCompra)
+                .orElse("T_COMPRA");
+    }
+
+    private String mapTarjeta(Integer numeroId) {
+        if (numeroId == null) return "Tarj de Credito";
+        return tarjetaRepository.findById(numeroId.shortValue())
+                .map(TarjetaEntity::getNombre)
+                .orElse("Tarj de Credito");
     }
 }

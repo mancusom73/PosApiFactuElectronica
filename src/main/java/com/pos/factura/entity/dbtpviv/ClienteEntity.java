@@ -44,6 +44,9 @@ public class ClienteEntity {
     @Column(name = "COND_IVA", nullable = false, columnDefinition = "TINYINT(4)")
     private String condIva;          // CF, RI, MO
 
+    @Column(name = "CUIT", length = 20)
+    private String cuit;
+
     /*@Column(name = "envia_por_mail", length = 1)
     private String enviaPorMail = "N";*/
 

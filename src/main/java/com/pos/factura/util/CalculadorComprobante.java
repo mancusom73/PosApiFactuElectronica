@@ -50,7 +50,8 @@ public class CalculadorComprobante {
 
             // 1. Subtotal sin descuento
             BigDecimal subtotal = p.getPrecioUnitarioSinIva()
-                    .multiply(item.getCantidad())
+               //TODO CREO QUE NO SE DEBE MULTIPLICAR POR LA CANTIDAD
+                 //   .multiply(item.getCantidad())
                     .setScale(ESCALA, REDONDEO);
 
             // 2. Descuento por línea

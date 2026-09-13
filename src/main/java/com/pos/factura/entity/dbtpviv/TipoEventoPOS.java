@@ -24,7 +24,9 @@ public enum TipoEventoPOS {
     FACTURA_A     (3, "FACTURA A",        "Factura A — Responsable Inscripto"),
     FACTURA_B     (4, "FACTURA B",        "Factura B — Consumidor Final"),
     NOTA_CREDITO_A(5, "NOTA DE CREDITO A","Nota de Crédito A"),
-    NOTA_CREDITO_B(6, "NOTA DE CREDITO B","Nota de Crédito B");
+    NOTA_CREDITO_B(6, "NOTA DE CREDITO B","Nota de Crédito B"),
+    TICKET_FACTURA_A(35, "FACTURA A","Factura A — Responsable Inscripto"),
+    TICKET_FACTURA_B(36, "FACTURA B","Factura B — Consumidor Final");
 
     /** Código interno del POS (campo TIPO_EVENTO en la tabla eventos) */
     private final int codigo;

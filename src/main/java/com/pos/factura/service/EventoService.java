@@ -26,14 +26,16 @@ public class EventoService {
     private final EvMediosRepository evmediosRepository;
     private final TicketFacturacionService ticketFacturacionService;
     private final TicketRepository ticketRepository;
+    private final TicketMapper ticketMapper;
     private static final Logger log = LoggerFactory.getLogger(EventoService.class);
 
-    public EventoService(EventoRepository repository, EvContRepository evcontRepository, EvMediosRepository evmediosRepository, FacturaService facturaService, TicketFacturacionService ticketFacturacionService, TicketRepository ticketRepository) {
+    public EventoService(EventoRepository repository, EvContRepository evcontRepository, EvMediosRepository evmediosRepository, FacturaService facturaService, TicketFacturacionService ticketFacturacionService, TicketRepository ticketRepository, TicketMapper ticketMapper) {
         this.eventoRepository = repository;
         this.evcontRepository =evcontRepository;
         this.evmediosRepository = evmediosRepository;
         this.ticketFacturacionService = ticketFacturacionService;
         this.ticketRepository = ticketRepository;
+        this.ticketMapper = ticketMapper;
     }
 
    /* public Evento buscar(Integer cajaZ,Integer idEvento) {
@@ -52,7 +54,7 @@ public class EventoService {
         List<EvMedios> evMedios = this.buscarEvMedios(ticket.getCajaZ(), ticket.getIdEvento());
         //TODO MAPEAR TODO DESDE DBTPVIV A posfe
         TicketEntity ticketCabecera = TicketMapper.mapEventoTicketEntity(ticket, evCont);
-        ticketCabecera.setPagos(TicketMapper.mapEvMediosToPagos(evMedios, ticketCabecera));
+        ticketCabecera.setPagos(ticketMapper.mapEvMediosToPagos(evMedios, ticketCabecera));
         ticketCabecera = ticketRepository.save(ticketCabecera);
 
         return ticketFacturacionService.facturar(ticketCabecera);

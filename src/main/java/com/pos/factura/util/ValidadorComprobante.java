@@ -349,7 +349,9 @@ public class ValidadorComprobante {
             BigDecimal bonifPct  = orCero(item.getBonificacionPorcentaje());
             Double alicuota      = item.getProducto().getAlicuota() != null ? item.getProducto().getAlicuota() : 0.0;
 
-            BigDecimal subtotal   = precio.multiply(cantidad).setScale(4, RoundingMode.HALF_UP);
+  //TODO CREO QUE NO DEBERIA MULTIPLICAR LA CANTIDAD
+            //BigDecimal subtotal   = precio.multiply(cantidad).setScale(4, RoundingMode.HALF_UP);
+            BigDecimal subtotal   = precio.setScale(4, RoundingMode.HALF_UP);
             BigDecimal descuento  = subtotal.multiply(bonifPct.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP))
                     .setScale(4, RoundingMode.HALF_UP);
             BigDecimal netoLinea  = subtotal.subtract(descuento);

@@ -115,13 +115,14 @@ public class EventoMapper {
 
     /** Ajustar según los valores reales de COD_DOCUMENTO en tu BD */
     private String mapTipoDocumento(String cod) {
-        if (cod == null) return "DNI";
+        if (cod == null) return "CUIT";
         switch (cod.trim().toUpperCase()) {
-            case "D": return "DNI";
-            case "C": return "CUIT";
-            case "L": return "CUIL";
-            case "P": return "PASAPORTE";
-            default:  return "DNI";
+            case "1": return "DNI";
+            case "3": return "CUIT";
+            case "4": return "CEDEULA";
+            case "2": return "CUIL";
+            case "5": return "PASAPORTE";
+            default:  return "CUIT";
         }
     }
 
@@ -409,10 +410,14 @@ public class EventoMapper {
             String claveItem = ec.getCodArticulo() + "|" + ec.getCodBarra();
             if (esOrigen1 && itemsPorClaveOrigen1.containsKey(claveItem)) {
                 TicketItemEntity itemExistente = itemsPorClaveOrigen1.get(claveItem);
+                BigDecimal total = importeSinIvaItem.multiply( cantidadEc.abs())
+                        .add(exentoItem.multiply( cantidadEc.abs()));
                 itemExistente.setCantidad(itemExistente.getCantidad().add(cantidadEc));
+                /*itemExistente.setPrecioUnitarioSinIva(itemExistente.getPrecioUnitarioSinIva()
+                        .add(importeSinIvaItem).add(exentoItem).multiply(cantidadEc.abs())
+                        .setScale(2, java.math.RoundingMode.HALF_UP));*/
                 itemExistente.setPrecioUnitarioSinIva(itemExistente.getPrecioUnitarioSinIva()
-                        .add(importeSinIvaItem).add(exentoItem)
-                        .setScale(2, java.math.RoundingMode.HALF_UP));
+                        .add(total));
                 continue;
             }
 
@@ -498,6 +503,8 @@ public class EventoMapper {
             case FACTURA_B:      return TicketEntity.TipoComprobante.FACTURA_B;
             case NOTA_CREDITO_A: return TicketEntity.TipoComprobante.NOTA_CREDITO_A;
             case NOTA_CREDITO_B: return TicketEntity.TipoComprobante.NOTA_CREDITO_B;
+            case TICKET_FACTURA_A: return TicketEntity.TipoComprobante.FACTURA_A;
+            case TICKET_FACTURA_B: return TicketEntity.TipoComprobante.FACTURA_B;
             default:             return TicketEntity.TipoComprobante.FACTURA_B;
         }
     }
