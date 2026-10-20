@@ -14,7 +14,11 @@ public class FacturaResponse {
     private boolean exitoso;
     private String mensaje;
 
-    // Datos de la factura emitida
+    // Estado en la API externa: "ENCOLADA" mientras se procesa de forma asincrónica
+    private String estado;
+    private String idExterno;
+
+    // Datos de la factura emitida (se completan cuando la API confirma el CAE)
     private String cae;
     private String caeVencimiento;
     private String comprobanteNro;
@@ -30,4 +34,6 @@ public class FacturaResponse {
 
     // En caso de error
     private String[] errores;
+    private String codigoArca;
+    private String mensajeArca;
 }

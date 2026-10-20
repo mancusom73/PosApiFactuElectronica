@@ -17,7 +17,7 @@ import java.util.NoSuchElementException;
 /**
  * Endpoints para facturar tickets leídos desde la base de datos MySQL del POS.
  *
- * Base URL: http://localhost:8080/api/v1/tickets
+ * Base URL: http://localhost:8080/api/v1/tickets  ojo con el puerto puede ser 8081
  */
 @RestController
 @RequestMapping("/api/v1/tickets")

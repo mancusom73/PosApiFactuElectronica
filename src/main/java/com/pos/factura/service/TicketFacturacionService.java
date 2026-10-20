@@ -126,10 +126,13 @@ public class TicketFacturacionService {
                     cliente.getNombre(),
                     ticket.getItems().size());
 
-            FacturaResponse respuesta = facturaService.emitir(solicitud, ticket.getNumeroTicket());
+            FacturaResponse respuesta = facturaService.emitir(solicitud, ticket.getNumeroTicket(),
+                    ticket.getCajaZ(), ticket.getIdEvento());
 
-            if (respuesta.isExitoso()) {
+            if (respuesta.isExitoso() && respuesta.getCae() != null) {
                 marcarFacturado(ticket, respuesta);
+            } else if (respuesta.isExitoso()) {
+                marcarEncolado(ticket, respuesta);
             } else {
                 String errores = respuesta.getErrores() != null
                         ? String.join(" | ", Arrays.asList(respuesta.getErrores()))
@@ -170,6 +173,10 @@ public class TicketFacturacionService {
             throw new IllegalStateException(
                     "El ticket " + ticket.getNumeroTicket() + " ya fue facturado. CAE: " + ticket.getCae());
         }
+        if (ticket.getEstado() == EstadoTicket.ENCOLADO) {
+            throw new IllegalStateException(
+                    "El ticket " + ticket.getNumeroTicket() + " ya fue enviado y está en cola. Id externo: " + ticket.getIdExterno());
+        }
         if (ticket.getEstado() == EstadoTicket.ANULADO) {
             throw new IllegalStateException(
                     "El ticket " + ticket.getNumeroTicket() + " está anulado");
@@ -196,6 +203,18 @@ public class TicketFacturacionService {
     }
 
     /**
+     * La API externa aceptó el comprobante (202) pero aún no devolvió el CAE:
+     * queda en cola, pendiente de consultar el resultado final más adelante.
+     */
+    private void marcarEncolado(TicketEntity ticket, FacturaResponse respuesta) {
+        ticket.setEstado(EstadoTicket.ENCOLADO);
+        ticket.setIdExterno(respuesta.getIdExterno());
+        ticket.setFechaFacturacion(LocalDateTime.now());
+        ticket.setErrorDescripcion(null);
+        log.info("Ticket {} ENCOLADO — idExterno: {}", ticket.getNumeroTicket(), respuesta.getIdExterno());
+    }
+
+    /**
      * Si el total difiere de neto + iva + exentos por exactamente $0.01 (redondeo
      * de la respuesta de AFIP), ajusta el total a la sumatoria antes de grabar.
      */
@@ -208,6 +227,9 @@ public class TicketFacturacionService {
     }
 
     private LocalDate parseCaeVencimiento(String valor) {
+        if (valor.contains("-")) {
+            return LocalDate.parse(valor);
+        }
         try {
             return LocalDate.parse(valor, FMT_FECHA_AFIP);
         } catch (DateTimeParseException ex) {

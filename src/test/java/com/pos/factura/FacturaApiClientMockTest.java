@@ -2,9 +2,12 @@ package com.pos.factura;
 
 import com.pos.factura.client.FacturaApiClient;
 import com.pos.factura.config.ApiConfig;
+import com.pos.factura.config.EmisorConfig;
 import com.pos.factura.dto.ApiFacturaRequest;
 import com.pos.factura.dto.ApiFacturaResponse;
 import com.pos.factura.model.*;
+import com.pos.factura.util.ApiFacturaRequestMapper;
+import com.pos.factura.util.CalculadorComprobante;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestTemplate;
 
@@ -23,7 +26,7 @@ class FacturaApiClientMockTest {
         apiConfig.setApikey("TU_APIKEY");
         apiConfig.setApitoken("TU_APITOKEN");
 
-        FacturaApiClient client = new FacturaApiClient(new RestTemplate(), apiConfig);
+        FacturaApiClient client = new FacturaApiClient(new RestTemplate(), apiConfig, new com.fasterxml.jackson.databind.ObjectMapper());
 
         Producto producto = new Producto();
         producto.setDescripcion("Producto de prueba");
@@ -56,13 +59,13 @@ class FacturaApiClientMockTest {
         cliente.setRazonSocial("Juan Perez");
         cliente.setCondicionIva("CF");
 
-        ApiFacturaRequest request = ApiFacturaRequest.builder()
-                .usertoken(apiConfig.getUsertoken())
-                .apikey(apiConfig.getApikey())
-                .apitoken(apiConfig.getApitoken())
-                .cliente(cliente)
-                .comprobante(comprobante)
-                .build();
+        new CalculadorComprobante().calcularTotales(comprobante);
+
+        EmisorConfig emisorConfig = new EmisorConfig();
+        emisorConfig.setCuit("20123456789");
+        emisorConfig.setPuntoVenta("0001");
+
+        ApiFacturaRequest request = new ApiFacturaRequestMapper().construir(comprobante, cliente, emisorConfig);
 
         ApiFacturaResponse response = client.emitirFactura(request);
 

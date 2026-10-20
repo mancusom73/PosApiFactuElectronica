@@ -44,6 +44,8 @@ public class CalculadorComprobante {
 
         // Mapa IVA por alícuota (útil para Factura A donde AFIP lo exige discriminado)
         Map<Double, BigDecimal> ivaPorAlicuota = new LinkedHashMap<>();
+        // Mapa neto (base imponible) por alícuota, en paralelo al de IVA
+        Map<Double, BigDecimal> netoPorAlicuota = new LinkedHashMap<>();
 
         for (DetalleItem item : comprobante.getDetalle()) {
             Producto p = item.getProducto();
@@ -79,8 +81,9 @@ public class CalculadorComprobante {
                 netoGravadoTotal = netoGravadoTotal.add(netoLinea);
                 ivaTotal = ivaTotal.add(ivaLinea);
 
-                // Acumular IVA por alícuota
+                // Acumular IVA y neto por alícuota
                 ivaPorAlicuota.merge(alicuota, ivaLinea, BigDecimal::add);
+                netoPorAlicuota.merge(alicuota, netoLinea, BigDecimal::add);
             }
         }
 
@@ -106,6 +109,7 @@ public class CalculadorComprobante {
         comprobante.setExentos(exentosTotal.setScale(ESCALA_API, REDONDEO));
         comprobante.setTotal(total);
         comprobante.setIvaPorAlicuota(redondearIvaPorAlicuota(ivaPorAlicuota));
+        comprobante.setNetoPorAlicuota(redondearIvaPorAlicuota(netoPorAlicuota));
     }
 
     /**

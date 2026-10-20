@@ -1,6 +1,6 @@
 package com.pos.factura.service;
 
-import com.pos.factura.dto.ApiFacturaRequest;
+import com.pos.factura.dto.ApiFacturaConsultaResponse;
 import com.pos.factura.dto.ApiFacturaResponse;
 import com.pos.factura.entity.factura.FacturaCabeceraEntity;
 import com.pos.factura.entity.factura.FacturaDetalleEntity;
@@ -62,20 +62,21 @@ public class FacturaPersistenciaService {
      * Persiste el request completo con estado PENDIENTE antes de llamar a AFIP.
      * Retorna el ID de la cabecera para poder actualizar el estado después.
      *
-     * @param request       JSON completo que se va a enviar a la API
+     * @param comp          Comprobante a facturar (con totales ya calculados)
+     * @param cliente       Cliente del comprobante
      * @param numeroTicket  Número del ticket del POS (para trazabilidad)
      * @return              ID de la FacturaCabeceraEntity creada
      */
     @Transactional("posfeTransactionManager")
-    public Long guardarAntesDeLlamar(ApiFacturaRequest request, String numeroTicket) {
+    public Long guardarAntesDeLlamar(Comprobante comp, Cliente cliente, String numeroTicket,
+                                     Long cajaZ, Long idEvento) {
         log.debug("Persistiendo request de factura antes de enviar a AFIP. Ticket: {}", numeroTicket);
-
-        Comprobante comp = request.getComprobante();
-        Cliente cliente = request.getCliente();
 
         // 1. Cabecera
         FacturaCabeceraEntity cabecera = mapearCabecera(comp, cliente);
         cabecera.setNumeroTicketPos(numeroTicket);
+        cabecera.setCajaZ(cajaZ);
+        cabecera.setIdEvento(idEvento);
         cabecera.setEstado("PENDIENTE");
         cabecera.setFechaEnvioApi(LocalDateTime.now());
         cabecera = cabeceraRepository.save(cabecera);
@@ -101,57 +102,49 @@ public class FacturaPersistenciaService {
     // =========================================================================
 
     /**
-     * Actualiza la cabecera con el resultado devuelto por la API de AFIP.
-     * Registra CAE, número de comprobante, PDF, QR y estado final.
+     * Actualiza la cabecera con la respuesta del POST a la API externa.
+     * La API responde 202 (Accepted): el comprobante queda ENCOLADO, pendiente
+     * de procesamiento asincrónico. El CAE se obtiene más adelante consultando
+     * el id externo (fuera del alcance de este método).
      *
      * @param cabeceraId    ID retornado por guardarAntesDeLlamar()
      * @param apiResponse   Respuesta recibida de la API externa
      */
     @Transactional("posfeTransactionManager")
-    public void actualizarConRespuesta(Long cabeceraId, ApiFacturaResponse apiResponse) {
+    public void actualizarConRespuesta(Long cabeceraId, ApiFacturaResponse apiResponse,
+                                       ApiFacturaConsultaResponse consulta) {
         FacturaCabeceraEntity cabecera = cabeceraRepository.findById(cabeceraId)
                 .orElseThrow(() -> new IllegalStateException(
                         "No se encontró la cabecera con ID: " + cabeceraId));
 
         cabecera.setFechaRespuestaApi(LocalDateTime.now());
 
-        if (apiResponse.isExitoso()) {
-            boolean tieneObservaciones = apiResponse.getErrores() != null
-                    && apiResponse.getErrores().length > 0;
-
-            cabecera.setEstado(tieneObservaciones ? "APROBADO_CON_OBSERVACIONES" : "APROBADO");
-            cabecera.setCae(apiResponse.getCae());
-            cabecera.setNumeroComprobante(apiResponse.getComprobanteNro());
-            cabecera.setPdfUrl(apiResponse.getComprobantePdfUrl());
-            cabecera.setPdfBase64(apiResponse.getComprobantePdfB64());
-            cabecera.setAfipQr(apiResponse.getAfipQr());
-            cabecera.setAfipCodigoBarras(apiResponse.getAfipCodigoBarras());
-            cabecera.setErrorDescripcion(tieneObservaciones
-                    ? truncarErrorDescripcion(String.join(" | ", apiResponse.getErrores()))
-                    : null);
-
-            if (apiResponse.getCaeVencimiento() != null) {
-                try {
-                    cabecera.setCaeVencimiento(
-                            LocalDate.parse(apiResponse.getCaeVencimiento(), FMT));
-                } catch (DateTimeParseException e) {
-                    log.warn("No se pudo parsear la fecha de vencimiento del CAE: {}",
-                            apiResponse.getCaeVencimiento());
+        if (apiResponse.isExitoso() && consulta != null) {
+            cabecera.setEstado(consulta.getEstado().toUpperCase());
+            cabecera.setIdExterno(consulta.getId());
+            if (consulta.getComprobante() != null) {
+                cabecera.setCae(consulta.getComprobante().getCae());
+                cabecera.setNumeroComprobante(String.valueOf(consulta.getComprobante().getNroCbte()));
+                if (consulta.getComprobante().getCaeVencimiento() != null) {
+                    cabecera.setCaeVencimiento(LocalDate.parse(consulta.getComprobante().getCaeVencimiento()));
                 }
             }
 
-            log.info("Cabecera ID={} actualizada como APROBADA — CAE: {}, Nro: {}",
-                    cabeceraId, apiResponse.getCae(), apiResponse.getComprobanteNro());
+            log.info("Cabecera ID={} actualizada — idExterno: {}, estado API: {}",
+                    cabeceraId, consulta.getId(), consulta.getEstado());
+
+        } else if (apiResponse.isExitoso()) {
+            cabecera.setEstado("ENCOLADA");
+            cabecera.setIdExterno(apiResponse.getId());
+
+            log.info("Cabecera ID={} ENCOLADA — idExterno: {}, estado API: {}",
+                    cabeceraId, apiResponse.getId(), apiResponse.getEstado());
 
         } else {
-            String errores = apiResponse.getErrores() != null
-                    ? String.join(" | ", apiResponse.getErrores())
-                    : "Error desconocido";
-
             cabecera.setEstado("RECHAZADO");
-            cabecera.setErrorDescripcion(truncarErrorDescripcion(errores));
+            cabecera.setErrorDescripcion(truncarErrorDescripcion("La API no aceptó el comprobante"));
 
-            log.warn("Cabecera ID={} marcada como RECHAZADA: {}", cabeceraId, errores);
+            log.warn("Cabecera ID={} marcada como RECHAZADA: la API no devolvió un id", cabeceraId);
         }
 
         cabeceraRepository.save(cabecera);

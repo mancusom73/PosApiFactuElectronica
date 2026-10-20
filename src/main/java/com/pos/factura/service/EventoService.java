@@ -54,6 +54,8 @@ public class EventoService {
         List<EvMedios> evMedios = this.buscarEvMedios(ticket.getCajaZ(), ticket.getIdEvento());
         //TODO MAPEAR TODO DESDE DBTPVIV A posfe
         TicketEntity ticketCabecera = TicketMapper.mapEventoTicketEntity(ticket, evCont);
+        ticketCabecera.setCajaZ(cajaZ);
+        ticketCabecera.setIdEvento(idEvento);
         ticketCabecera.setPagos(ticketMapper.mapEvMediosToPagos(evMedios, ticketCabecera));
         ticketCabecera = ticketRepository.save(ticketCabecera);
 

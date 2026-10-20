@@ -108,4 +108,11 @@ public class Comprobante {
 
     @JsonIgnore
     private Map<Double, BigDecimal> ivaPorAlicuota;
+
+    /**
+     * Base imponible (neto) por alícuota, en paralelo a ivaPorAlicuota.
+     * Se usa para armar el array "iva" del request a la API externa.
+     */
+    @JsonIgnore
+    private Map<Double, BigDecimal> netoPorAlicuota;
 }

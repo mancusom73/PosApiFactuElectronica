@@ -1,31 +1,68 @@
 package com.pos.factura.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.pos.factura.model.Cliente;
-import com.pos.factura.model.Comprobante;
 import lombok.Builder;
 import lombok.Data;
 
+import java.math.BigDecimal;
+import java.util.List;
+
 /**
- * JSON completo que se envía al proveedor de factura electrónica.
- * Incluye credenciales de autenticación + datos del comprobante.
+ * JSON que se envía a la API externa de factura electrónica.
+ * Formato plano con los nombres/códigos de ARCA (ex-AFIP).
  */
 @Data
 @Builder
 public class ApiFacturaRequest {
 
-    @JsonProperty("usertoken")
-    private String usertoken;
+    @JsonProperty("cuit")
+    private String cuit;
 
-    @JsonProperty("apikey")
-    private String apikey;
+    @JsonProperty("ptoVta")
+    private Integer ptoVta;
 
-    @JsonProperty("apitoken")
-    private String apitoken;
+    @JsonProperty("cbteTipo")
+    private Integer cbteTipo;
 
-    @JsonProperty("cliente")
-    private Cliente cliente;
+    @JsonProperty("concepto")
+    private Integer concepto;
 
-    @JsonProperty("comprobante")
-    private Comprobante comprobante;
+    @JsonProperty("docTipo")
+    private Integer docTipo;
+
+    @JsonProperty("docNro")
+    private String docNro;
+
+    @JsonProperty("cbteFch")
+    private String cbteFch;
+
+    @JsonProperty("condicionIvaReceptor")
+    private Integer condicionIvaReceptor;
+
+    @JsonProperty("impNeto")
+    private BigDecimal impNeto;
+
+    @JsonProperty("impIVA")
+    private BigDecimal impIVA;
+
+    @JsonProperty("impTrib")
+    private BigDecimal impTrib;
+
+    @JsonProperty("impTotal")
+    private BigDecimal impTotal;
+
+    @JsonProperty("monId")
+    private String monId;
+
+    @JsonProperty("monCotiz")
+    private BigDecimal monCotiz;
+
+    @JsonProperty("iva")
+    private List<IvaDetalle> iva;
+
+    @JsonProperty("tributos")
+    private List<TributoDetalle> tributos;
+
+    @JsonProperty("cbtesAsoc")
+    private List<CbteAsociado> cbtesAsoc;
 }

@@ -37,6 +37,12 @@ public class TicketEntity {
     @Column(name = "numero_ticket", nullable = false, unique = true, length = 20)
     private String numeroTicket;
 
+    @Column(name = "caja_z")
+    private Long cajaZ;
+
+    @Column(name = "id_evento")
+    private Long idEvento;
+
     @Column(name = "fecha", nullable = false)
     private LocalDate fecha;
 
@@ -60,6 +66,7 @@ public class TicketEntity {
     /**
      * Estado del ticket:
      * PENDIENTE   → generado por el POS, aún no facturado
+     * ENCOLADO    → enviado a la API externa, en cola de procesamiento (sin CAE aún)
      * FACTURADO   → CAE obtenido exitosamente
      * ERROR       → intento de facturación fallido
      * ANULADO     → ticket anulado (genera NC)
@@ -104,6 +111,10 @@ public class TicketEntity {
 
     @Column(name = "comprobante_nro", length = 30)
     private String comprobanteNro;
+
+    /** Id devuelto por la API externa al encolar el comprobante (mientras no haya CAE) */
+    @Column(name = "id_externo", length = 50)
+    private String idExterno;
 
     @Column(name = "afip_qr", length = 500)
     private String afipQr;
@@ -151,7 +162,7 @@ public class TicketEntity {
     }
 
     public enum EstadoTicket {
-        PENDIENTE, FACTURADO, ERROR, ANULADO
+        PENDIENTE, ENCOLADO, FACTURADO, ERROR, ANULADO
     }
 
     @PrePersist

@@ -14,4 +14,7 @@ public class ApiConfig {
     private String apitoken;
     private int connectTimeoutMs = 5000;
     private int readTimeoutMs = 15000;
+    private int maxReintentos = 3;
+    private long esperaEntreReintentosMs = 1000;
+    private long consultaTimeoutMs = 30000;
 }

@@ -126,7 +126,7 @@ public class FacturaCabeceraEntity {
 
     /**
      * PENDIENTE                  = antes de llamar a la API
-     * ENVIADO                    = JSON enviado, esperando respuesta
+     * ENCOLADA                   = la API aceptó (202) el comprobante y lo está procesando
      * APROBADO                   = CAE obtenido
      * APROBADO_CON_OBSERVACIONES = CAE obtenido, con observaciones de AFIP
      * RECHAZADO                  = AFIP rechazó el comprobante
@@ -134,6 +134,10 @@ public class FacturaCabeceraEntity {
      */
     @Column(name = "estado", nullable = false, length = 30)
     private String estado = "PENDIENTE";
+
+    /** Id devuelto por la API externa al encolar el comprobante (ver links.self para consultar el estado) */
+    @Column(name = "id_externo", length = 50)
+    private String idExterno;
 
     /** Código de Autorización Electrónico devuelto por AFIP */
     @Column(name = "cae", length = 20)
@@ -166,6 +170,13 @@ public class FacturaCabeceraEntity {
     /** Número del ticket del POS que originó esta factura */
     @Column(name = "numero_ticket_pos", length = 20)
     private String numeroTicketPos;
+
+    /** FK compuesta (caja_z, id_evento, fecha) → tickets */
+    @Column(name = "caja_z")
+    private Long cajaZ;
+
+    @Column(name = "id_evento")
+    private Long idEvento;
 
     @Column(name = "fecha_envio_api")
     private LocalDateTime fechaEnvioApi;

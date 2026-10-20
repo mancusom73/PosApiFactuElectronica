@@ -5,56 +5,33 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 /**
- * Respuesta del proveedor de factura electrónica.
- * Los campos pueden variar según el proveedor — ajustar según documentación.
+ * Respuesta del POST a la API externa de factura electrónica.
+ * La API responde 202 (Accepted): el comprobante queda encolado y se
+ * procesa de forma asincrónica. El resultado final (CAE, etc.) se
+ * consulta aparte, en el endpoint indicado por links.self.
  */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ApiFacturaResponse {
 
-    @JsonProperty("exitoso")
-    private boolean exitoso;
+    /** Id del comprobante encolado, usado luego para consultar el estado */
+    @JsonProperty("id")
+    private String id;
 
-    @JsonProperty("errores")
-    private String[] errores;
+    /** Ej: "Encolada" */
+    @JsonProperty("estado")
+    private String estado;
 
-    /**
-     * CAE = Código de Autorización Electrónico (AFIP)
-     */
-    @JsonProperty("cae")
-    private String cae;
-
-    @JsonProperty("caeVencimiento")
-    private String caeVencimiento;
-
-    /**
-     * Número de comprobante asignado por AFIP
-     */
-    @JsonProperty("comprobanteNro")
-    private String comprobanteNro;
-
-    /**
-     * PDF del comprobante en Base64
-     */
-    @JsonProperty("pdfBase64")
-    private String comprobantePdfB64;
-
-    /**
-     * URL pública del PDF (algunos proveedores lo ofrecen)
-     */
-    @JsonProperty("pdfUrl")
-    private String comprobantePdfUrl;
-
-    /**
-     * Código QR según normativa AFIP 2024
-     */
-    @JsonProperty("afipQr")
-    private String afipQr;
-
-    @JsonProperty("afipCodigoBarras")
-    private String afipCodigoBarras;
+    @JsonProperty("links")
+    private Links links;
 
     public boolean isExitoso() {
-        return exitoso;
+        return id != null;
+    }
+
+    @Data
+    public static class Links {
+        @JsonProperty("self")
+        private String self;
     }
 }
