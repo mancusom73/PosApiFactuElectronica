@@ -54,5 +54,8 @@ public class ApiFacturaConsultaResponse {
 
         @JsonProperty("caeVencimiento")
         private String caeVencimiento;
+
+        @JsonProperty("qrUrl")
+        private String qrUrl;
     }
 }

@@ -60,11 +60,16 @@ public class EventoMapper {
      * el descuento en PRECIO_FIJO.
      */
     public Double obtenerPrecioFijoDescuento(Long cajaZ, Long idEvento, Integer codArt) {
-        return evBPromoRepository
-                .findIdGrupoByCajaZAndIdEventoAndCodArtAndBpromo(cajaZ, idEvento, codArt, (short) 1)
-                .flatMap(idGrupo -> evBPromoRepository
-                        .findPrecioFijoByCajaZAndIdEventoAndIdGrupoAndBpromo(cajaZ, idEvento, idGrupo, (short) 101))
-                .orElse(null);
+        try {
+            return evBPromoRepository
+                    .findIdGrupoByCajaZAndIdEventoAndCodArtAndBpromo(cajaZ, idEvento, codArt, (short) 1)
+                    .flatMap(idGrupo -> evBPromoRepository
+                            .findPrecioFijoByCajaZAndIdEventoAndIdGrupoAndBpromo(cajaZ, idEvento, idGrupo, (short) 101))
+                    .orElse(null);
+        } catch (javax.persistence.NonUniqueResultException
+                 | org.springframework.dao.IncorrectResultSizeDataAccessException e) {
+            return 0.0;
+        }
     }
 
     /**

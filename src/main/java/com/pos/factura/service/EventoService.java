@@ -47,7 +47,7 @@ public class EventoService {
     }*/
 
     @Transactional("dbtpvivTransactionManager")
-    public FacturaResponse buscarEvento(Long cajaZ, Long idEvento) {
+    public FacturaResponse buscarEvento(Long cajaZ, Long idEvento, Long hora, Long ptoVta) {
         log.info("Iniciando la busqueda del evento: {}");
         Evento ticket = eventoRepository.findByCajaZAndIdEvento(cajaZ, idEvento);
         List<EvCont> evCont = this.buscarEvCont(ticket.getCajaZ(), ticket.getIdEvento());
@@ -59,7 +59,8 @@ public class EventoService {
         ticketCabecera.setPagos(ticketMapper.mapEvMediosToPagos(evMedios, ticketCabecera));
         ticketCabecera = ticketRepository.save(ticketCabecera);
 
-        return ticketFacturacionService.facturar(ticketCabecera);
+        String idempotencyKey = ticket.getIdEvento() + "-" + ticket.getCajaZ() + "-" + ticket.getFecha() + "-" + hora;
+        return ticketFacturacionService.facturar(ticketCabecera, idempotencyKey, ptoVta);
     }
     @Transactional("dbtpvivTransactionManager")
     public List<EvCont> buscarEvCont(Long cajaZ,Long idEvento) {

@@ -78,13 +78,15 @@ public class TicketController {
     @PostMapping("/facturar")
     public ResponseEntity<FacturaResponse> facturarPorId(
             @RequestParam Long cajaZ,
-            @RequestParam Long idEvento
+            @RequestParam Long idEvento,
+            @RequestParam Long hora,
+            @RequestParam Long ptoVta
     ) {
 
-        log.info("Request de facturación — cajaZ: {}, idEvento: {}", cajaZ, idEvento);
+        log.info("Request de facturación — cajaZ: {}, idEvento: {}, hora: {}, ptoVta: {}", cajaZ, idEvento, hora, ptoVta);
 
         try {
-            FacturaResponse response = eventoService.buscarEvento(cajaZ,idEvento);
+            FacturaResponse response = eventoService.buscarEvento(cajaZ,idEvento,hora,ptoVta);
 
             return/* response.isExitoso()
                     ? */ResponseEntity.ok(response);

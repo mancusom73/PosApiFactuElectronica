@@ -17,6 +17,7 @@ import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 
@@ -31,6 +32,7 @@ public class FacturaApiClient {
 
     private static final Logger log = LoggerFactory.getLogger(FacturaApiClient.class);
 
+    //estan en minusculas porque comparo con un tolowercase
     private static final List<String> ESTADOS_PENDIENTES = List.of("recibida", "validada", "encolada", "procesando");
 
     private final RestTemplate restTemplate;
@@ -50,15 +52,18 @@ public class FacturaApiClient {
      * @return Respuesta del proveedor con CAE, PDF, QR
      * @throws ApiComunicacionException si falla la comunicación
      */
-    public ApiFacturaResponse emitirFactura(ApiFacturaRequest request) {
+    public ApiFacturaResponse emitirFactura(ApiFacturaRequest request, String idempotencyKey) {
         String url = apiConfig.getUrl() + "/facturas";
 
         log.info("Enviando comprobante cbteTipo={} ptoVta={} a la API externa: {}",
                 request.getCbteTipo(), request.getPtoVta(), url);
 
-        String idempotencyKey = java.util.UUID.randomUUID().toString();
+        if (idempotencyKey == null) {
+            idempotencyKey = java.util.UUID.randomUUID().toString();
+        }
         HttpHeaders headers = buildHeaders(idempotencyKey);
         HttpEntity<ApiFacturaRequest> entity = new HttpEntity<>(request, headers);
+        log.info("JSON enviado a la API externa:\n{}", toJson(request));
 
         int intento = 0;
         Exception ultimoError = null;
@@ -80,6 +85,7 @@ public class FacturaApiClient {
                 if (body == null) {
                     throw new ApiComunicacionException("La API externa retornó una respuesta vacía", 500);
                 }
+                log.info("JSON recibido de la API externa:\n{}", toJson(body));
 
                 log.info("Respuesta recibida de la API externa — id: {}, estado: {}",
                         body.getId(), body.getEstado());
@@ -88,15 +94,29 @@ public class FacturaApiClient {
 
             } catch (HttpClientErrorException ex) {
                 int status = ex.getStatusCode().value();
+                if (status == 429) {
+                    // LIMITE_EXCEDIDO: esperar Retry-After y reintentar con la misma key
+                    log.warn("HTTP 429 en intento {}: {}", intento, ex.getResponseBodyAsString());
+                    ultimoError = ex;
+                    if (intento < maxReintentos) {
+                        esperarRetryAfter(ex, intento);
+                    }
+                    continue;
+                }
+                // 400, 401, 403, 404, 409: no reintentables
                 log.error("Error del cliente HTTP {}: {}", status, ex.getResponseBodyAsString());
-                throw new ApiComunicacionException(extraerCode(ex), status);
+                throw crearExcepcion(ex, status);
 
             } catch (HttpServerErrorException ex) {
                 if (ex.getStatusCode().value() == 503) {
-                    log.error("Error HTTP 503: {}", ex.getResponseBodyAsString());
-                    throw new ApiComunicacionException(extraerCode(ex), 503);
+                    ApiComunicacionException error = crearExcepcion(ex, 503);
+                    // PUNTO_VENTA_BLOQUEADO requiere intervención humana; solo SERVICIO_NO_DISPONIBLE se reintenta
+                    if (!"SERVICIO_NO_DISPONIBLE".equals(error.getCode())) {
+                        log.error("Error HTTP 503: {}", ex.getResponseBodyAsString());
+                        throw error;
+                    }
                 }
-                // Error 5xx del servidor externo: reintentable
+                // 500 ERROR_INTERNO / 503 SERVICIO_NO_DISPONIBLE: reintentable con la misma key
                 log.warn("Error del servidor externo HTTP {} en intento {}: {}",
                         ex.getStatusCode(), intento, ex.getResponseBodyAsString());
                 ultimoError = ex;
@@ -113,6 +133,10 @@ public class FacturaApiClient {
         }
 
         // Agotados los reintentos
+        if (ultimoError instanceof HttpStatusCodeException) {
+            HttpStatusCodeException httpError = (HttpStatusCodeException) ultimoError;
+            throw crearExcepcion(httpError, httpError.getStatusCode().value());
+        }
         throw new ApiComunicacionException(
                 "No se pudo conectar con la API externa luego de " + maxReintentos + " intentos: "
                         + (ultimoError != null ? ultimoError.getMessage() : "error desconocido"),
@@ -120,18 +144,18 @@ public class FacturaApiClient {
         );
     }
 
-    private String extraerCode(HttpStatusCodeException ex) {
+    private ApiComunicacionException crearExcepcion(HttpStatusCodeException ex, int status) {
         try {
             JsonNode body = objectMapper.readTree(ex.getResponseBodyAsString());
             String code = body.path("code").asText(null);
             String detail = body.path("detail").asText(null);
             if (code != null && !code.isBlank()) {
-                return detail != null && !detail.isBlank() ? code + ": " + detail : code;
+                return new ApiComunicacionException(code, detail, status);
             }
         } catch (Exception e) {
             log.warn("No se pudo leer el code del body de error: {}", e.getMessage());
         }
-        return "Error HTTP " + ex.getStatusCode().value();
+        return new ApiComunicacionException("Error HTTP " + status, status);
     }
 
     public static String extraerIdDeSelf(ApiFacturaResponse response) {
@@ -165,8 +189,18 @@ public class FacturaApiClient {
                         ApiFacturaConsultaResponse.class
                 );
                 ultima = response.getBody();
+                log.info("JSON recibido de la API externa (consulta):\n{}", toJson(ultima));
                 if (ultima != null) {
                     log.info("Factura consultada (intento {}) — id: {}, estado: {}", intento, ultima.getId(), ultima.getEstado());
+                    if ("Error transitorio".equalsIgnoreCase(ultima.getEstado())) {
+                        if (intento >= apiConfig.getMaxReintentos()) {
+                            log.warn("Factura {} sigue en 'Error transitorio' luego de {} intentos consecutivos", id, intento);
+                            return ultima;
+                        }
+                        esperar(apiConfig.getEsperaEntreReintentosMs());
+                        continue;
+                    }
+                    intento = 0;
                     boolean pendiente = ultima.getEstado() != null
                             && ESTADOS_PENDIENTES.contains(ultima.getEstado().toLowerCase());
                     if (!pendiente) {
@@ -201,6 +235,14 @@ public class FacturaApiClient {
         return ultima;
     }
 
+    private String toJson(Object obj) {
+        try {
+            return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(obj);
+        } catch (Exception e) {
+            return "No se pudo serializar a JSON: " + e.getMessage();
+        }
+    }
+
     private void esperar(long ms) {
         try {
             Thread.sleep(ms);
@@ -211,11 +253,22 @@ public class FacturaApiClient {
 
     private HttpHeaders buildHeaders(String idempotencyKey) {
         HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setContentType(new MediaType(MediaType.APPLICATION_JSON, StandardCharsets.UTF_8));
         headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
         headers.set("X-Api-Key", apiConfig.getApikey());
         headers.set("Idempotency-Key", idempotencyKey);
         return headers;
+    }
+
+    private void esperarRetryAfter(HttpStatusCodeException ex, int intento) {
+        String retryAfter = ex.getResponseHeaders() != null ? ex.getResponseHeaders().getFirst("Retry-After") : null;
+        try {
+            long ms = Long.parseLong(retryAfter.trim()) * 1000;
+            log.debug("Esperando Retry-After de {}ms antes del siguiente intento...", ms);
+            esperar(ms);
+        } catch (Exception e) {
+            esperarEntreReintentos(intento);
+        }
     }
 
     private void esperarEntreReintentos(int intento) {

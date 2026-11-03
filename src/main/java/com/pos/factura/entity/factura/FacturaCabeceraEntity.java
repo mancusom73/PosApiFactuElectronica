@@ -171,7 +171,7 @@ public class FacturaCabeceraEntity {
     @Column(name = "numero_ticket_pos", length = 20)
     private String numeroTicketPos;
 
-    /** FK compuesta (caja_z, id_evento, fecha) → tickets */
+    /** Referencia lógica (caja_z, id_evento, fecha) → tickets, sin FK */
     @Column(name = "caja_z")
     private Long cajaZ;
 

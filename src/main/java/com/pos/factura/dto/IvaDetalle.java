@@ -1,6 +1,8 @@
 package com.pos.factura.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.pos.factura.util.DosDecimalesSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -20,8 +22,10 @@ public class IvaDetalle {
     private Integer id;
 
     @JsonProperty("baseImp")
+    @JsonSerialize(using = DosDecimalesSerializer.class)
     private BigDecimal baseImp;
 
     @JsonProperty("importe")
+    @JsonSerialize(using = DosDecimalesSerializer.class)
     private BigDecimal importe;
 }

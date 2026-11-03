@@ -77,4 +77,7 @@ public class ArticuloEntity {
 
     @Column(name = "COD_CLASIFICACION", length = 35)
     private String codClasificacion;
+
+    @Column(name = "PESABLE", columnDefinition = "CHAR(1)")
+    private String pesable;
 }

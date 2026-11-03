@@ -11,6 +11,7 @@ import com.pos.factura.model.ComprobanteAsociado;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -31,6 +32,7 @@ public class ApiFacturaRequestMapper {
 
     /** Siempre "Percepción de IVA" — hoy el comprobante no discrimina el tipo de percepción */
     private static final int TRIBUTO_ID_PERCEPCION_IVA = 6;
+    private static final String TRIBUTO_DESC_PERCEPCION_IVA = "Percepcion de IVA";
 
     public ApiFacturaRequest construir(Comprobante comp, Cliente cliente, EmisorConfig emisorConfig) {
         return ApiFacturaRequest.builder()
@@ -45,6 +47,7 @@ public class ApiFacturaRequestMapper {
                 .impNeto(orCero(comp.getNetoGravado()))
                 .impIVA(orCero(comp.getIvaTotal()))
                 .impTrib(orCero(comp.getPercepcion()))
+                .impOpEx(orCero(comp.getExentos()))
                 .impTotal(orCero(comp.getTotal()))
                 .monId(comp.getMoneda())
                 .monCotiz(new BigDecimal(comp.getCotizacion()))
@@ -81,7 +84,13 @@ public class ApiFacturaRequestMapper {
         List<TributoDetalle> lista = new ArrayList<>();
         BigDecimal percepcion = comp.getPercepcion();
         if (percepcion != null && percepcion.compareTo(BigDecimal.ZERO) > 0) {
-            lista.add(new TributoDetalle(TRIBUTO_ID_PERCEPCION_IVA, null, percepcion));
+            // La percepción de IVA se calcula sobre el neto gravado; la alícuota se deriva del importe
+            BigDecimal baseImp = orCero(comp.getNetoGravado());
+            BigDecimal alicuota = baseImp.signum() > 0
+                    ? percepcion.multiply(BigDecimal.valueOf(100)).divide(baseImp, 2, RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO;
+            lista.add(new TributoDetalle(TRIBUTO_ID_PERCEPCION_IVA, TRIBUTO_DESC_PERCEPCION_IVA,
+                    baseImp, alicuota, percepcion));
         }
         return lista;
     }

@@ -67,7 +67,7 @@ class FacturaApiClientMockTest {
 
         ApiFacturaRequest request = new ApiFacturaRequestMapper().construir(comprobante, cliente, emisorConfig);
 
-        ApiFacturaResponse response = client.emitirFactura(request);
+        ApiFacturaResponse response = client.emitirFactura(request, null);
 
         System.out.println("Respuesta mock: " + response);
         assertNotNull(response);

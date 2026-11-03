@@ -65,11 +65,11 @@ public class FacturaService {
      * @param numeroTicket Número de ticket del POS (para trazabilidad en la DB)
      */
     public FacturaResponse emitir(SolicitudFacturaRequest solicitud, String numeroTicket) {
-        return emitir(solicitud, numeroTicket, null, null);
+        return emitir(solicitud, numeroTicket, null, null, null);
     }
 
     public FacturaResponse emitir(SolicitudFacturaRequest solicitud, String numeroTicket,
-                                  Long cajaZ, Long idEvento) {
+                                  Long cajaZ, Long idEvento, String idempotencyKey) {
 
         Comprobante comprobante = solicitud.getComprobante();
 
@@ -96,6 +96,7 @@ public class FacturaService {
 
         // ── Paso 4: Construir request para la API externa ──────────────────────
         ApiFacturaRequest apiRequest = requestMapper.construir(comprobante, solicitud.getCliente(), emisorConfig);
+        validador.validarTributos(apiRequest);
 
         // ── Paso 5: Persistir en MySQL ANTES de llamar a AFIP ─────────────────
         Long cabeceraId = null;
@@ -110,7 +111,7 @@ public class FacturaService {
         // ── Paso 6: Llamar a la API externa ───────────────────────────────────
         ApiFacturaResponse apiResponse;
         try {
-            apiResponse = apiClient.emitirFactura(apiRequest);
+            apiResponse = apiClient.emitirFactura(apiRequest, idempotencyKey);
         } catch (Exception e) {
             // Error de comunicación: marcar en DB y propagar
             if (cabeceraId != null) {
@@ -172,7 +173,8 @@ public class FacturaService {
                 if (consulta.getComprobante() != null) {
                     builder.cae(consulta.getComprobante().getCae())
                             .caeVencimiento(consulta.getComprobante().getCaeVencimiento())
-                            .comprobanteNro(String.valueOf(consulta.getComprobante().getNroCbte()));
+                            .comprobanteNro(String.valueOf(consulta.getComprobante().getNroCbte()))
+                            .afipQr(consulta.getComprobante().getQrUrl());
                 }
                 if (tieneErrorFinal(consulta)) {
                     builder.codigoArca(consulta.getError().getCodigoArca())

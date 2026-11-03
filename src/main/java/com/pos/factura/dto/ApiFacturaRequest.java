@@ -1,6 +1,8 @@
 package com.pos.factura.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.pos.factura.util.DosDecimalesSerializer;
 import lombok.Builder;
 import lombok.Data;
 
@@ -40,15 +42,23 @@ public class ApiFacturaRequest {
     private Integer condicionIvaReceptor;
 
     @JsonProperty("impNeto")
+    @JsonSerialize(using = DosDecimalesSerializer.class)
     private BigDecimal impNeto;
 
     @JsonProperty("impIVA")
+    @JsonSerialize(using = DosDecimalesSerializer.class)
     private BigDecimal impIVA;
 
     @JsonProperty("impTrib")
+    @JsonSerialize(using = DosDecimalesSerializer.class)
     private BigDecimal impTrib;
 
+    @JsonProperty("impOpEx")
+    @JsonSerialize(using = DosDecimalesSerializer.class)
+    private BigDecimal impOpEx;
+
     @JsonProperty("impTotal")
+    @JsonSerialize(using = DosDecimalesSerializer.class)
     private BigDecimal impTotal;
 
     @JsonProperty("monId")

@@ -11,6 +11,7 @@ import com.pos.factura.model.DetalleItem;
 import com.pos.factura.model.Pagos;
 import com.pos.factura.model.Producto;
 import com.pos.factura.repository.FacturaCabeceraRepository;
+import com.pos.factura.repository.dbtpviv.FactuMemRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -49,9 +50,12 @@ public class FacturaPersistenciaService {
     private static final int ERROR_DESCRIPCION_MAX_LENGTH = 1000;
 
     private final FacturaCabeceraRepository cabeceraRepository;
+    private final FactuMemRepository factuMemRepository;
 
-    public FacturaPersistenciaService(FacturaCabeceraRepository cabeceraRepository) {
+    public FacturaPersistenciaService(FacturaCabeceraRepository cabeceraRepository,
+                                      FactuMemRepository factuMemRepository) {
         this.cabeceraRepository = cabeceraRepository;
+        this.factuMemRepository = factuMemRepository;
     }
 
     // =========================================================================
@@ -125,8 +129,12 @@ public class FacturaPersistenciaService {
             if (consulta.getComprobante() != null) {
                 cabecera.setCae(consulta.getComprobante().getCae());
                 cabecera.setNumeroComprobante(String.valueOf(consulta.getComprobante().getNroCbte()));
+                cabecera.setAfipQr(consulta.getComprobante().getQrUrl());
                 if (consulta.getComprobante().getCaeVencimiento() != null) {
                     cabecera.setCaeVencimiento(LocalDate.parse(consulta.getComprobante().getCaeVencimiento()));
+                }
+                if (consulta.getComprobante().getCae() != null) {
+                    actualizarFactuMem(consulta.getComprobante());
                 }
             }
 
@@ -165,6 +173,25 @@ public class FacturaPersistenciaService {
             cabecera.setErrorDescripcion(truncarErrorDescripcion(mensajeError));
             cabeceraRepository.save(cabecera);
             log.warn("Cabecera ID={} marcada como ERROR: {}", cabeceraId, mensajeError);
+        });
+    }
+
+    private void actualizarFactuMem(ApiFacturaConsultaResponse.Comprobante comprobante) {
+        String descripcion;
+        if (Integer.valueOf(1).equals(comprobante.getCbteTipo())) {
+            descripcion = "NRO_FACTURA_A";
+        } else if (Integer.valueOf(6).equals(comprobante.getCbteTipo())) {
+            descripcion = "NRO_FACTURA_B";
+        } else if (Integer.valueOf(3).equals(comprobante.getCbteTipo())) {
+            descripcion = "NRO_NCREDITO_A";
+        } else if (Integer.valueOf(8).equals(comprobante.getCbteTipo())) {
+            descripcion = "NRO_NCREDITO_B";
+        } else {
+            return;
+        }
+        factuMemRepository.findByDescripcion(descripcion).ifPresent(mem -> {
+            mem.setValor(String.valueOf(comprobante.getNroCbte()));
+            factuMemRepository.save(mem);
         });
     }
 

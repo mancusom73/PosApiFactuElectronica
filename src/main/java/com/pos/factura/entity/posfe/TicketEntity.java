@@ -34,7 +34,7 @@ public class TicketEntity {
     /**
      * Número correlativo del ticket generado por el POS.
      */
-    @Column(name = "numero_ticket", nullable = false, unique = true, length = 20)
+    @Column(name = "numero_ticket", nullable = false, length = 20)
     private String numeroTicket;
 
     @Column(name = "caja_z")
@@ -72,7 +72,7 @@ public class TicketEntity {
      * ANULADO     → ticket anulado (genera NC)
      */
     @Enumerated(EnumType.STRING)
-    @Column(name = "estado", nullable = false, length = 15)
+    @Column(name = "estado", nullable = false, length = 30)
     private EstadoTicket estado = EstadoTicket.PENDIENTE;
 
     @Column(name = "moneda", length = 5)
@@ -162,7 +162,10 @@ public class TicketEntity {
     }
 
     public enum EstadoTicket {
-        PENDIENTE, ENCOLADO, FACTURADO, ERROR, ANULADO
+        PENDIENTE, ENCOLADO, FACTURADO, ERROR, ANULADO, BAD_REQUEST,
+        VALIDACION_FORMATO, NO_AUTORIZADO, PUNTO_VENTA_DESHABILITADO, NO_ENCONTRADO,
+        IDEMPOTENCY_KEY_CONFLICTO, LIMITE_EXCEDIDO, ERROR_INTERNO, PUNTO_VENTA_BLOQUEADO,
+        SERVICIO_NO_DISPONIBLE
     }
 
     @PrePersist

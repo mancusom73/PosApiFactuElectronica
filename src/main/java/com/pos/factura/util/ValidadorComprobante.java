@@ -1,5 +1,7 @@
 package com.pos.factura.util;
 
+import com.pos.factura.dto.ApiFacturaRequest;
+import com.pos.factura.dto.TributoDetalle;
 import com.pos.factura.exception.FacturaValidationException;
 import com.pos.factura.model.Cliente;
 import com.pos.factura.model.Comprobante;
@@ -15,6 +17,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -76,6 +79,7 @@ public class ValidadorComprobante {
         validarDocumentoCliente(comprobante, cliente, errores);
         validarAlicuotas(comprobante, errores);
         validarTotalesCuadran(comprobante, errores);
+        validarIvaPorAlicuota(comprobante, errores);
         validarTotalesPagos(comprobante, errores);
 
         if (!errores.isEmpty()) {
@@ -285,7 +289,7 @@ public class ValidadorComprobante {
 
     /**
      * Verifica que el total declarado en el comprobante coincida con la suma
-     * de sus componentes calculados: neto gravado + IVA + exentos - bonificación general.
+     * de los importes que se envían a la API: impTotal = impNeto + impIVA + impTrib + impOpEx.
      *
      * Se permite una tolerancia de $0.01 para absorber diferencias de redondeo.
      */
@@ -303,26 +307,83 @@ public class ValidadorComprobante {
         }
         totalDecl = totalDecl.setScale(2, RoundingMode.HALF_UP);
 
-        BigDecimal totalCalculado = neto.add(iva).add(exentos).add(percepcion)
+        BigDecimal totalCalculado = neto.add(iva).add(percepcion).add(exentos)
                 .setScale(2, RoundingMode.HALF_UP);
 
         BigDecimal diferencia = totalDecl.subtract(totalCalculado).abs();
 
-        log.info("Validando cuadre de totales — neto: {} + iva: {} + exentos: {} + percepcion: {} = totalCalculado: {} | bonificacion (no sumada): {} | totalDeclarado: {} | diferencia: {}",
-                neto, iva, exentos, percepcion, totalCalculado, bonif, totalDecl, diferencia);
+        log.info("Validando cuadre de totales — neto: {} + iva: {} + percepcion: {} + exentos: {} = totalCalculado: {} | bonificacion (no sumada): {} | totalDeclarado: {} | diferencia: {}",
+                neto, iva, percepcion, exentos, totalCalculado, bonif, totalDecl, diferencia);
 
         logDetalleItems(comprobante, percepcion);
 
         if (diferencia.compareTo(TOLERANCIA_TOTAL) > 0) {
             errores.add(String.format(
-                    "Los totales no cuadran: neto(%.2f) + IVA(%.2f) + exentos(%.2f) + percepción(%.2f) - bonificación(%.2f) = %.2f, " +
-                    "pero el total declarado es %.2f (diferencia: %.2f)",
-                    neto, iva, exentos, percepcion, bonif, totalCalculado, totalDecl, diferencia));
+                    "Los totales no cuadran: impNeto(%.2f) + impIVA(%.2f) + impTrib(%.2f) + impOpEx(%.2f) = %.2f, " +
+                    "pero impTotal es %.2f (diferencia: %.2f)",
+                    neto, iva, percepcion, exentos, totalCalculado, totalDecl, diferencia));
         }
 
         if (totalDecl.compareTo(BigDecimal.ZERO) <= 0) {
             errores.add(String.format(
                     "El total del comprobante (%.2f) debe ser mayor a cero", totalDecl));
+        }
+    }
+
+    /**
+     * Valida el array tributos[] del request ya construido: la suma de importe debe
+     * ser igual a impTrib, y si impTrib es 0 debe enviarse vacío.
+     *
+     * @throws FacturaValidationException si no cumple
+     */
+    public void validarTributos(ApiFacturaRequest request) {
+        List<String> errores = new ArrayList<>();
+        BigDecimal impTrib = orCero(request.getImpTrib()).setScale(2, RoundingMode.HALF_UP);
+        List<TributoDetalle> tributos = request.getTributos();
+
+        if (tributos == null) {
+            errores.add("tributos[] no puede ser nulo: enviar [] si impTrib es 0");
+        } else if (impTrib.signum() == 0) {
+            if (!tributos.isEmpty()) {
+                errores.add("impTrib es 0 pero tributos[] tiene " + tributos.size() + " elemento(s): debe enviarse vacío");
+            }
+        } else {
+            BigDecimal sumaTrib = tributos.stream()
+                    .map(t -> orCero(t.getImporte()).setScale(2, RoundingMode.HALF_UP))
+                    .reduce(BigDecimal.ZERO.setScale(2), BigDecimal::add);
+            if (sumaTrib.compareTo(impTrib) != 0) {
+                errores.add(String.format(
+                        "La suma de tributos[].importe (%.2f) no es igual a impTrib (%.2f)", sumaTrib, impTrib));
+            }
+        }
+
+        if (!errores.isEmpty()) {
+            throw new FacturaValidationException(errores);
+        }
+    }
+
+    /**
+     * La suma de iva[].importe del request debe ser igual a impIVA.
+     * iva[] solo puede ir vacío si impIVA es 0.
+     */
+    private void validarIvaPorAlicuota(Comprobante comprobante, List<String> errores) {
+        BigDecimal impIva = orCero(comprobante.getIvaTotal()).setScale(2, RoundingMode.HALF_UP);
+        Map<Double, BigDecimal> ivaPorAlicuota = comprobante.getIvaPorAlicuota();
+
+        if (ivaPorAlicuota == null || ivaPorAlicuota.isEmpty()) {
+            if (impIva.signum() != 0) {
+                errores.add(String.format(
+                        "iva[] está vacío pero impIVA es %.2f: solo puede ir vacío si impIVA es 0", impIva));
+            }
+            return;
+        }
+
+        BigDecimal sumaIva = ivaPorAlicuota.values().stream()
+                .map(importe -> orCero(importe).setScale(2, RoundingMode.HALF_UP))
+                .reduce(BigDecimal.ZERO.setScale(2), BigDecimal::add);
+        if (sumaIva.compareTo(impIva) != 0) {
+            errores.add(String.format(
+                    "La suma de iva[].importe (%.2f) no es igual a impIVA (%.2f)", sumaIva, impIva));
         }
     }
 
@@ -349,7 +410,7 @@ public class ValidadorComprobante {
             BigDecimal bonifPct  = orCero(item.getBonificacionPorcentaje());
             Double alicuota      = item.getProducto().getAlicuota() != null ? item.getProducto().getAlicuota() : 0.0;
 
-  //TODO CREO QUE NO DEBERIA MULTIPLICAR LA CANTIDAD
+  //TODO CREO QUE NO DEBERIA MULTIPLICAR LA CANTIDAD --pero en pesable si ???
             //BigDecimal subtotal   = precio.multiply(cantidad).setScale(4, RoundingMode.HALF_UP);
             BigDecimal subtotal   = precio.setScale(4, RoundingMode.HALF_UP);
             BigDecimal descuento  = subtotal.multiply(bonifPct.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP))

@@ -14,7 +14,7 @@ public class FacturaResponse {
     private boolean exitoso;
     private String mensaje;
 
-    // Estado en la API externa: "ENCOLADA" mientras se procesa de forma asincrónica
+    // Estado en la API externa: "ENCOLADA" mientras se procesa de forma asincrÃ³nica
     private String estado;
     private String idExterno;
 

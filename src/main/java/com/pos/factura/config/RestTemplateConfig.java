@@ -19,7 +19,7 @@ public class RestTemplateConfig {
         factory.setReadTimeout(apiConfig.getReadTimeoutMs());
         RestTemplate restTemplate = new RestTemplate(factory);
 
-        // La API externa de factura electrónica responde JSON con Content-Type: text/plain
+        // La API externa de factura electrÃ³nica responde JSON con Content-Type: text/plain
         MappingJackson2HttpMessageConverter jsonConverter = new MappingJackson2HttpMessageConverter();
         jsonConverter.setSupportedMediaTypes(Arrays.asList(MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN));
         restTemplate.getMessageConverters().add(0, jsonConverter);

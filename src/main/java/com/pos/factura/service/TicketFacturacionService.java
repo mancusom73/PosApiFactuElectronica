@@ -6,6 +6,8 @@ import com.pos.factura.entity.dbtpviv.EvCont;
 import com.pos.factura.entity.posfe.TicketEntity;
 import com.pos.factura.entity.posfe.TicketEntity.EstadoTicket;
 import com.pos.factura.entity.dbtpviv.ClienteEntity;
+import com.pos.factura.exception.ApiComunicacionException;
+import com.pos.factura.exception.FacturaValidationException;
 import com.pos.factura.mapper.TicketMapper;
 import com.pos.factura.repository.TicketRepository;
 import com.pos.factura.repository.dbtpviv.ClienteRepository;
@@ -59,30 +61,30 @@ public class TicketFacturacionService {
         this.facturaService    = facturaService;
     }
 
-    @Transactional("posfeTransactionManager")
+    @Transactional(value = "posfeTransactionManager", noRollbackFor = ApiComunicacionException.class)
     public FacturaResponse facturarTicket(String numeroTicket) {
         log.info("Iniciando facturación del ticket: {}", numeroTicket);
         TicketEntity ticket = ticketRepository.findConItemsByNumeroTicket(numeroTicket)
                 .orElseThrow(() -> new NoSuchElementException(
                         "No se encontró el ticket: " + numeroTicket));
         ticketRepository.findConPagosByNumeroTicket(numeroTicket);
-        return procesarFacturacion(ticket);
+        return procesarFacturacion(ticket, null, null);
     }
 
-    @Transactional("posfeTransactionManager")
+    @Transactional(value = "posfeTransactionManager", noRollbackFor = ApiComunicacionException.class)
     public FacturaResponse facturarTicketPorId(Long ticketId) {
         log.info("Iniciando facturación del ticket ID: {}", ticketId);
         TicketEntity ticket = ticketRepository.findConDetalleById(ticketId)
                 .orElseThrow(() -> new NoSuchElementException(
                         "No se encontró el ticket ID: " + ticketId));
         ticketRepository.findConPagosById(ticketId);
-        return procesarFacturacion(ticket);
+        return procesarFacturacion(ticket, null, null);
     }
 
-    @Transactional("posfeTransactionManager")
-    public FacturaResponse facturar(TicketEntity ticket) {
+    @Transactional(value = "posfeTransactionManager", noRollbackFor = Exception.class)
+    public FacturaResponse facturar(TicketEntity ticket, String idempotencyKey, Long ptoVta) {
         log.info("Iniciando facturación del ticket ID: {}", ticket.getId());
-        return procesarFacturacion(ticket);
+        return procesarFacturacion(ticket, idempotencyKey, ptoVta);
     }
 
     @Transactional("posfeTransactionManager")
@@ -94,7 +96,7 @@ public class TicketFacturacionService {
         return pendientes.stream()
                 .map(ticket -> {
                     try {
-                        return procesarFacturacion(ticket);
+                        return procesarFacturacion(ticket, null, null);
                     } catch (Exception e) {
                         log.error("Error procesando ticket {}: {}", ticket.getNumeroTicket(), e.getMessage());
                         return FacturaResponse.builder()
@@ -106,7 +108,7 @@ public class TicketFacturacionService {
                 .collect(Collectors.toList());
     }
 
-    private FacturaResponse procesarFacturacion(TicketEntity ticket) {
+    private FacturaResponse procesarFacturacion(TicketEntity ticket, String idempotencyKey, Long ptoVta) {
         // 2. Validar estado del ticket
         validarEstadoTicket(ticket);
 
@@ -119,6 +121,9 @@ public class TicketFacturacionService {
         ticketRepository.save(ticket);
         try {
             SolicitudFacturaRequest solicitud = ticketMapper.toSolicitud(ticket, cliente);
+            if (ptoVta != null) {
+                solicitud.getComprobante().setPuntoVenta(String.valueOf(ptoVta));
+            }
 
             log.debug("Ticket {} mapeado: tipo={}, cliente={}, items={}",
                     ticket.getNumeroTicket(),
@@ -127,7 +132,7 @@ public class TicketFacturacionService {
                     ticket.getItems().size());
 
             FacturaResponse respuesta = facturaService.emitir(solicitud, ticket.getNumeroTicket(),
-                    ticket.getCajaZ(), ticket.getIdEvento());
+                    ticket.getCajaZ(), ticket.getIdEvento(), idempotencyKey);
 
             if (respuesta.isExitoso() && respuesta.getCae() != null) {
                 marcarFacturado(ticket, respuesta);
@@ -143,6 +148,16 @@ public class TicketFacturacionService {
             ticketRepository.save(ticket);
             return respuesta;
 
+        } catch (ApiComunicacionException e) {
+            log.error("Error de la API facturando ticket {}: {}", ticket.getNumeroTicket(), e.getMessage());
+            marcarErrorApi(ticket, e);
+            ticketRepository.save(ticket);
+            throw e;
+        } catch (FacturaValidationException e) {
+            log.error("Error de validación facturando ticket {}: {}", ticket.getNumeroTicket(), e.getErrores());
+            marcarError(ticket, e.getErrores().isEmpty() ? e.getMessage() : e.getErrores().get(0));
+            ticketRepository.save(ticket);
+            throw e;
         } catch (Exception e) {
             log.error("Error inesperado facturando ticket {}: {}", ticket.getNumeroTicket(), e.getMessage());
             marcarError(ticket, e.getMessage());
@@ -241,6 +256,16 @@ public class TicketFacturacionService {
         ticket.setEstado(EstadoTicket.ERROR);
         ticket.setErrorDescripcion(truncarErrorDescripcion(descripcion));
         log.warn("Ticket {} ERROR: {}", ticket.getNumeroTicket(), descripcion);
+    }
+
+    private void marcarErrorApi(TicketEntity ticket, ApiComunicacionException e) {
+        EstadoTicket estado = Arrays.stream(EstadoTicket.values())
+                .filter(v -> v.name().equals(e.getCode()))
+                .findFirst()
+                .orElse(EstadoTicket.ERROR);
+        ticket.setEstado(estado);
+        ticket.setErrorDescripcion(truncarErrorDescripcion(e.getDetail() != null ? e.getDetail() : e.getMessage()));
+        log.warn("Ticket {} {}: {}", ticket.getNumeroTicket(), estado, ticket.getErrorDescripcion());
     }
 
     private String truncarErrorDescripcion(String descripcion) {

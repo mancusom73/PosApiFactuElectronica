@@ -92,24 +92,33 @@ public class CalculadorComprobante {
                 ? comprobante.getBonificacion()
                 : BigDecimal.ZERO;
 
-        // 6. Total final
-        BigDecimal percepcion = comprobante.getPercepcion() != null
-                ? comprobante.getPercepcion()
-                : BigDecimal.ZERO;
-        BigDecimal total = netoGravadoTotal
-                .add(ivaTotal)
-                .add(exentosTotal)
-                .add(percepcion)
-   //             .subtract(descuentoGeneral) //el descuento se incluye como item extra por eso se sumariza con el resto
-                .setScale(ESCALA_API, REDONDEO);
+        // 6. Redondear por alícuota y sumar los importes ya redondeados: ARCA exige
+        //    impNeto = Σ iva[].baseImp, impIVA = Σ iva[].importe e impTotal = suma exacta de componentes
+        Map<Double, BigDecimal> ivaPorAlicuotaRedondeado = redondearIvaPorAlicuota(ivaPorAlicuota);
+        Map<Double, BigDecimal> netoPorAlicuotaRedondeado = redondearIvaPorAlicuota(netoPorAlicuota);
+        BigDecimal netoGravado = netoPorAlicuotaRedondeado.values().stream()
+                .reduce(BigDecimal.ZERO.setScale(ESCALA_API), BigDecimal::add);
+        BigDecimal iva = ivaPorAlicuotaRedondeado.values().stream()
+                .reduce(BigDecimal.ZERO.setScale(ESCALA_API), BigDecimal::add);
+        BigDecimal exentos = exentosTotal.setScale(ESCALA_API, REDONDEO);
 
-        // 7. Asignar resultados (redondeados a 2 decimales: formato exigido por la API de factura electrónica)
-        comprobante.setNetoGravado(netoGravadoTotal.setScale(ESCALA_API, REDONDEO));
-        comprobante.setIvaTotal(ivaTotal.setScale(ESCALA_API, REDONDEO));
-        comprobante.setExentos(exentosTotal.setScale(ESCALA_API, REDONDEO));
+        // 7. Total final
+        BigDecimal percepcion = comprobante.getPercepcion() != null
+                ? comprobante.getPercepcion().setScale(ESCALA_API, REDONDEO)
+                : BigDecimal.ZERO.setScale(ESCALA_API);
+        BigDecimal total = netoGravado
+                .add(iva)
+                .add(exentos)
+                .add(percepcion);
+   //             .subtract(descuentoGeneral) //el descuento se incluye como item extra por eso se sumariza con el resto
+
+        // 8. Asignar resultados (redondeados a 2 decimales: formato exigido por la API de factura electrónica)
+        comprobante.setNetoGravado(netoGravado);
+        comprobante.setIvaTotal(iva);
+        comprobante.setExentos(exentos);
         comprobante.setTotal(total);
-        comprobante.setIvaPorAlicuota(redondearIvaPorAlicuota(ivaPorAlicuota));
-        comprobante.setNetoPorAlicuota(redondearIvaPorAlicuota(netoPorAlicuota));
+        comprobante.setIvaPorAlicuota(ivaPorAlicuotaRedondeado);
+        comprobante.setNetoPorAlicuota(netoPorAlicuotaRedondeado);
     }
 
     /**
