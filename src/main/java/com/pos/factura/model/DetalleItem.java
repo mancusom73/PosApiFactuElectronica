@@ -20,6 +20,9 @@ public class DetalleItem {
     @JsonProperty("afecta_stock")
     private String afectaStock = "S";
 
+    @JsonProperty("impuesto_interno")
+    private BigDecimal impuestoInterno = BigDecimal.ZERO;
+
     @JsonProperty("bonificacion_porcentaje")
     private BigDecimal bonificacionPorcentaje = BigDecimal.ZERO;
 

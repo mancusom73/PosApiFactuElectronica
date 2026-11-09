@@ -25,7 +25,7 @@ class ValidadorComprobanteTest {
 
     @BeforeEach
     void setUp() {
-        validador  = new ValidadorComprobante();
+        validador  = new ValidadorComprobante(org.mockito.Mockito.mock(com.pos.factura.repository.dbtpviv.ArticuloRepository.class));
         calculador = new CalculadorComprobante();
     }
 

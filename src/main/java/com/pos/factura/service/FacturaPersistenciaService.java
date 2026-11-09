@@ -11,7 +11,9 @@ import com.pos.factura.model.DetalleItem;
 import com.pos.factura.model.Pagos;
 import com.pos.factura.model.Producto;
 import com.pos.factura.repository.FacturaCabeceraRepository;
+import com.pos.factura.repository.dbtpviv.EventoRepository;
 import com.pos.factura.repository.dbtpviv.FactuMemRepository;
+import com.pos.factura.entity.dbtpviv.Evento;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -51,11 +53,14 @@ public class FacturaPersistenciaService {
 
     private final FacturaCabeceraRepository cabeceraRepository;
     private final FactuMemRepository factuMemRepository;
+    private final EventoRepository eventoRepository;
 
     public FacturaPersistenciaService(FacturaCabeceraRepository cabeceraRepository,
-                                      FactuMemRepository factuMemRepository) {
+                                      FactuMemRepository factuMemRepository,
+                                      EventoRepository eventoRepository) {
         this.cabeceraRepository = cabeceraRepository;
         this.factuMemRepository = factuMemRepository;
+        this.eventoRepository = eventoRepository;
     }
 
     // =========================================================================
@@ -126,15 +131,25 @@ public class FacturaPersistenciaService {
         if (apiResponse.isExitoso() && consulta != null) {
             cabecera.setEstado(consulta.getEstado().toUpperCase());
             cabecera.setIdExterno(consulta.getId());
+            cabecera.setModoUsado(consulta.getModoUsado());
             if (consulta.getComprobante() != null) {
                 cabecera.setCae(consulta.getComprobante().getCae());
                 cabecera.setNumeroComprobante(String.valueOf(consulta.getComprobante().getNroCbte()));
+                if (consulta.getComprobante().getPtoVta() != null) {
+                    cabecera.setPuntoVenta(String.valueOf(consulta.getComprobante().getPtoVta()));
+                }
                 cabecera.setAfipQr(consulta.getComprobante().getQrUrl());
                 if (consulta.getComprobante().getCaeVencimiento() != null) {
                     cabecera.setCaeVencimiento(LocalDate.parse(consulta.getComprobante().getCaeVencimiento()));
                 }
                 if (consulta.getComprobante().getCae() != null) {
-                    actualizarFactuMem(consulta.getComprobante());
+                    if ("Normal".equalsIgnoreCase(consulta.getModoUsado())) {
+                        actualizarFactuMem(consulta.getComprobante());
+                    } else if ("Contingencia".equalsIgnoreCase(consulta.getModoUsado())
+                            || "Reconciliando".equalsIgnoreCase(consulta.getModoUsado())) {
+                        actualizarNroCajaDgi(cabecera.getCajaZ(), cabecera.getIdEvento(),
+                                consulta.getComprobante().getPtoVta());
+                    }
                 }
             }
 
@@ -193,6 +208,16 @@ public class FacturaPersistenciaService {
             mem.setValor(String.valueOf(comprobante.getNroCbte()));
             factuMemRepository.save(mem);
         });
+    }
+
+    private void actualizarNroCajaDgi(Long cajaZ, Long idEvento, Integer ptoVta) {
+        Evento evento = eventoRepository.findByCajaZAndIdEvento(cajaZ, idEvento);
+        if (evento == null || ptoVta == null) {
+            log.warn("No se actualizó NRO_CAJA_DGI: evento cajaZ={}, idEvento={}, ptoVta={}", cajaZ, idEvento, ptoVta);
+            return;
+        }
+        evento.setNroCajaDgi(ptoVta.shortValue());
+        eventoRepository.save(evento);
     }
 
     private String truncarErrorDescripcion(String descripcion) {

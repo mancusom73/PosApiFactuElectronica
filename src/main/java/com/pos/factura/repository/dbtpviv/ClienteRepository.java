@@ -16,4 +16,6 @@ public interface ClienteRepository extends JpaRepository<ClienteEntity, Long> {
     Optional<ClienteEntity> findByNroDocumento(String documentoNro);
 
     boolean existsByNroDocumento(String documentoNro);
+
+    Optional<ClienteEntity> findFirstByNombreIgnoreCaseAndCondIva(String nombre, String condIva);
 }

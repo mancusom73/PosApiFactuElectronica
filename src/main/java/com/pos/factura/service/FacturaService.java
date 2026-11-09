@@ -85,6 +85,7 @@ public class FacturaService {
         Pagos pagos = comprobante.getPagos();
         if (pagos != null && pagos.getFormasPago() != null && !pagos.getFormasPago().isEmpty()) {
             calculador.calcularTotalPagos(pagos);
+            calculador.ajustarTotalAPagos(comprobante);
         }
 
         log.info("Totales calculados — Neto: {}, IVA: {}, Total: {}",
@@ -97,6 +98,7 @@ public class FacturaService {
         // ── Paso 4: Construir request para la API externa ──────────────────────
         ApiFacturaRequest apiRequest = requestMapper.construir(comprobante, solicitud.getCliente(), emisorConfig);
         validador.validarTributos(apiRequest);
+        validador.validarReglasArca(apiRequest);
 
         // ── Paso 5: Persistir en MySQL ANTES de llamar a AFIP ─────────────────
         Long cabeceraId = null;

@@ -4,6 +4,8 @@ import com.pos.factura.model.Comprobante;
 import com.pos.factura.model.DetalleItem;
 import com.pos.factura.model.Pagos;
 import com.pos.factura.model.Producto;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -32,6 +34,11 @@ public class CalculadorComprobante {
     // La API de factura electrónica exige los totales con 2 decimales (formato AFIP)
     private static final int ESCALA_API = 2;
 
+    private static final BigDecimal TOLERANCIA_PAGOS = new BigDecimal("0.01");
+    private static final BigDecimal MAX_AJUSTE_REDONDEO = new BigDecimal("0.10");
+
+    private static final Logger log = LoggerFactory.getLogger(CalculadorComprobante.class);
+
     /**
      * Calcula y asigna todos los totales al objeto Comprobante.
      * Debe llamarse ANTES de construir el JSON para la API.
@@ -41,6 +48,7 @@ public class CalculadorComprobante {
         BigDecimal netoGravadoTotal = BigDecimal.ZERO;
         BigDecimal ivaTotal         = BigDecimal.ZERO;
         BigDecimal exentosTotal     = BigDecimal.ZERO;
+        BigDecimal impIntTotal      = BigDecimal.ZERO;
 
         // Mapa IVA por alícuota (útil para Factura A donde AFIP lo exige discriminado)
         Map<Double, BigDecimal> ivaPorAlicuota = new LinkedHashMap<>();
@@ -52,9 +60,12 @@ public class CalculadorComprobante {
 
             // 1. Subtotal sin descuento
             BigDecimal subtotal = p.getPrecioUnitarioSinIva()
-               //TODO CREO QUE NO SE DEBE MULTIPLICAR POR LA CANTIDAD
-                 //   .multiply(item.getCantidad())
+                    .multiply(item.getCantidad())
                     .setScale(ESCALA, REDONDEO);
+
+            if (item.getImpuestoInterno() != null) {
+                impIntTotal = impIntTotal.add(item.getImpuestoInterno().multiply(item.getCantidad()));
+            }
 
             // 2. Descuento por línea
             BigDecimal bonifPct = item.getBonificacionPorcentaje() != null
@@ -106,16 +117,19 @@ public class CalculadorComprobante {
         BigDecimal percepcion = comprobante.getPercepcion() != null
                 ? comprobante.getPercepcion().setScale(ESCALA_API, REDONDEO)
                 : BigDecimal.ZERO.setScale(ESCALA_API);
+        BigDecimal impuestosInternos = impIntTotal.setScale(ESCALA_API, REDONDEO);
         BigDecimal total = netoGravado
                 .add(iva)
                 .add(exentos)
-                .add(percepcion);
+                .add(percepcion)
+                .add(impuestosInternos);
    //             .subtract(descuentoGeneral) //el descuento se incluye como item extra por eso se sumariza con el resto
 
         // 8. Asignar resultados (redondeados a 2 decimales: formato exigido por la API de factura electrónica)
         comprobante.setNetoGravado(netoGravado);
         comprobante.setIvaTotal(iva);
         comprobante.setExentos(exentos);
+        comprobante.setImpuestosInternos(impuestosInternos);
         comprobante.setTotal(total);
         comprobante.setIvaPorAlicuota(ivaPorAlicuotaRedondeado);
         comprobante.setNetoPorAlicuota(netoPorAlicuotaRedondeado);
@@ -134,6 +148,36 @@ public class CalculadorComprobante {
                 .setScale(ESCALA_API, REDONDEO);
 
         pagos.setTotal(totalPagos);
+    }
+
+    /**
+     * Si el total calculado difiere del total de pagos por redondeo (más de 0,01 y hasta
+     * MAX_AJUSTE_REDONDEO), ajusta el neto de la alícuota con mayor base para que el
+     * comprobante enviado a ARCA coincida con lo cobrado. Debe llamarse después de
+     * calcularTotales y calcularTotalPagos.
+     */
+    public void ajustarTotalAPagos(Comprobante comprobante) {
+        Pagos pagos = comprobante.getPagos();
+        if (pagos == null || pagos.getTotal() == null || comprobante.getTotal() == null) return;
+
+        BigDecimal diferencia = pagos.getTotal().subtract(comprobante.getTotal());
+        if (diferencia.abs().compareTo(TOLERANCIA_PAGOS) <= 0
+                || diferencia.abs().compareTo(MAX_AJUSTE_REDONDEO) > 0) return;
+
+        Map<Double, BigDecimal> netoPorAlicuota = comprobante.getNetoPorAlicuota();
+        if (netoPorAlicuota != null && !netoPorAlicuota.isEmpty()) {
+            Double alicuota = netoPorAlicuota.entrySet().stream()
+                    .max(Map.Entry.comparingByValue()).get().getKey();
+            netoPorAlicuota.merge(alicuota, diferencia, BigDecimal::add);
+            comprobante.setNetoGravado(comprobante.getNetoGravado().add(diferencia));
+            log.warn("Ajuste por redondeo de {} en el neto de alícuota {}% para igualar el total de pagos ({})",
+                    diferencia, alicuota, pagos.getTotal());
+        } else {
+            comprobante.setExentos(comprobante.getExentos().add(diferencia));
+            log.warn("Ajuste por redondeo de {} en exentos para igualar el total de pagos ({})",
+                    diferencia, pagos.getTotal());
+        }
+        comprobante.setTotal(comprobante.getTotal().add(diferencia));
     }
 
     private Map<Double, BigDecimal> redondearIvaPorAlicuota(Map<Double, BigDecimal> ivaPorAlicuota) {

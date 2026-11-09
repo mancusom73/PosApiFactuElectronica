@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -78,9 +79,17 @@ public class TicketMapper {
     private Cliente mapCliente(ClienteEntity ce) {
         Cliente cliente = new Cliente();
         String documentoTipo = mapTipoDocumento(ce.getCodDocumento(), ce.getCuit());
+        String documentoNro = "CUIT".equals(documentoTipo) && ce.getCuit() != null
+                ? ce.getCuit() : ce.getNroDocumento();
+        if ("CUIT".equals(documentoTipo) && !esCuitValido(ce.getCuit())
+                && "1".equals(ce.getCodDocumento() != null ? ce.getCodDocumento().trim() : null)
+                && ce.getNroDocumento() != null && ce.getNroDocumento().trim().matches("[1-9]\\d*")) {
+            log.warn("CUIT '{}' del cliente {} inválido: se informa DNI {}", ce.getCuit(), ce.getCodCliente(), ce.getNroDocumento());
+            documentoTipo = "DNI";
+            documentoNro = ce.getNroDocumento().trim();
+        }
         cliente.setDocumentoTipo(documentoTipo);
-        cliente.setDocumentoNro("CUIT".equals(documentoTipo) && ce.getCuit() != null
-                ? ce.getCuit() : ce.getNroDocumento());
+        cliente.setDocumentoNro(documentoNro);
         cliente.setRazonSocial(ce.getNombre());
         cliente.setDomicilio(ce.getDomicilio());
         cliente.setProvincia(mapProvincia(ce.getProvincia()));
@@ -89,6 +98,13 @@ public class TicketMapper {
         cliente.setEnviaPorMail("N");
 
         return cliente;
+    }
+
+    private boolean esCuitValido(String cuit) {
+        if (cuit == null) return false;
+        String limpio = cuit.replaceAll("[-\\s]", "");
+        return limpio.matches("(20|23|24|27|30|33|34)\\d{9}")
+                && com.pos.factura.util.ValidadorComprobante.esCuitDigitoVerificadorValido(limpio);
     }
 
     /** Ajustar según los valores reales de COD_DOCUMENTO en tu BD */
@@ -101,6 +117,7 @@ public class TicketMapper {
             case "2": return "CUIL";
             case "4": return "CEDULA";
             case "5": return "PASAPORTE";
+            case "99": return "SIN_IDENTIFICAR";
             default:  return "DNI";
         }
     }
@@ -110,8 +127,12 @@ public class TicketMapper {
         if (cond == null) return "CF";
         switch (cond.trim()) {
             case "1": return "RI";
-            case "4": return "CF";
+            case "4": return "EX";
+            case "5": return "CF";
             case "6": return "MO";
+            case "7": return "NC";
+            case "8": return "LIB";
+            case "9": return "EXT";
             default:  return "CF";
         }
     }
@@ -163,6 +184,7 @@ public class TicketMapper {
     private DetalleItem mapItem(TicketItemEntity ie) {
         DetalleItem item = new DetalleItem();
         item.setCantidad(ie.getCantidad());
+        item.setImpuestoInterno(ie.getImpuestoInterno() != null ? ie.getImpuestoInterno() : BigDecimal.ZERO);
         item.setBonificacionPorcentaje(ie.getBonificacionPorcentaje() != null
                 ? ie.getBonificacionPorcentaje().setScale(2, RoundingMode.HALF_UP)
                 : null);
@@ -283,11 +305,20 @@ public class TicketMapper {
                     TicketPagoEntity pago = new TicketPagoEntity();
                     pago.setTicket(ticket);
                     pago.setDescripcion(mapModoPago(em));
-                    pago.setImporte(em.getImporte() != null
-                            ? java.math.BigDecimal.valueOf(em.getImporte())
-                            : java.math.BigDecimal.ZERO);
+                    double neto = em.getImporte() != null ? em.getImporte() : 0d;
+                    boolean efectivo = em.getModoPago() != null && medioRepository.findById(em.getModoPago().byteValue())
+                            .map(medio -> "S".equals(medio.getEfectivo()))
+                            .orElse(false);
+                    if (efectivo) {
+                        neto = neto
+                                - (em.getVueltoEfectivo() != null ? em.getVueltoEfectivo() : 0d)
+                                - (em.getVueltoPropio() != null ? em.getVueltoPropio() : 0d)
+                                - (em.getVueltoMedio() != null ? em.getVueltoMedio() : 0d);
+                    }
+                    pago.setImporte(java.math.BigDecimal.valueOf(neto).setScale(2, java.math.RoundingMode.HALF_UP));
                     return pago;
                 })
+                .filter(pago -> pago.getImporte().signum() != 0)
                 .collect(Collectors.toList());
     }
 

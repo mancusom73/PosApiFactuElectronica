@@ -40,6 +40,16 @@ public interface EvBPromoRepository
             @Param("bpromo") Short bpromo
     );
 
+    @Query("SELECT SUM(p.precioFijo) FROM EvBPromo p " +
+           "WHERE p.cajaZ = :cajaZ AND p.idEvento = :idEvento AND p.bpromo = 101 " +
+           "AND p.idGrupo IN (SELECT a.idGrupo FROM EvBPromo a " +
+           "WHERE a.cajaZ = :cajaZ AND a.idEvento = :idEvento AND a.codArt = :codArt AND a.bpromo = 1)")
+    Double sumPrecioFijoDescuentoByCajaZAndIdEventoAndCodArt(
+            @Param("cajaZ") Long cajaZ,
+            @Param("idEvento") Long idEvento,
+            @Param("codArt") Integer codArt
+    );
+
     @Query("SELECT e.idGrupo FROM EvBPromo e " +
            "WHERE e.cajaZ = :cajaZ AND e.idEvento = :idEvento " +
            "AND e.bpromo = :bpromo")

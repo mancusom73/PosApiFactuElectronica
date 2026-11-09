@@ -1,11 +1,13 @@
 package com.pos.factura.util;
 
 import com.pos.factura.dto.ApiFacturaRequest;
+import com.pos.factura.dto.IvaDetalle;
 import com.pos.factura.dto.TributoDetalle;
 import com.pos.factura.exception.FacturaValidationException;
 import com.pos.factura.model.Cliente;
 import com.pos.factura.model.Comprobante;
 import com.pos.factura.model.DetalleItem;
+import com.pos.factura.repository.dbtpviv.ArticuloRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -47,6 +49,13 @@ public class ValidadorComprobante {
     // Tolerancia de redondeo para comparación de totales ($0.01)
     private static final BigDecimal TOLERANCIA_TOTAL = new BigDecimal("0.01");
 
+    private static final Set<Integer> CBTE_CLASE_A = Set.of(1, 2, 3);
+    private static final Set<Integer> CBTE_CLASE_B = Set.of(6, 7, 8);
+    private static final Set<Integer> CBTE_CLASE_C = Set.of(11, 12, 13);
+    private static final Set<Integer> COND_IVA_CLASE_A = Set.of(1, 6, 13, 16);
+    private static final Set<Integer> COND_IVA_CLASE_B = Set.of(4, 5, 7, 8, 9, 10, 15);
+    private static final BigDecimal MONTO_IDENTIFICACION_B = new BigDecimal("10000000");
+
     private static final Set<String> TIPOS_VALIDOS = Set.of(
             "FACTURA A", "FACTURA B", "FACTURA C", "FACTURA M",
             "NOTA DE CREDITO A", "NOTA DE CREDITO B", "NOTA DE CREDITO C",
@@ -57,6 +66,12 @@ public class ValidadorComprobante {
 
     // Pesos del algoritmo módulo 11 para validar CUIT/CUIL
     private static final int[] PESOS_CUIT = {5, 4, 3, 2, 7, 6, 5, 4, 3, 2};
+
+    private final ArticuloRepository articuloRepository;
+
+    public ValidadorComprobante(ArticuloRepository articuloRepository) {
+        this.articuloRepository = articuloRepository;
+    }
 
     // =========================================================================
     // Punto de entrada público
@@ -98,16 +113,6 @@ public class ValidadorComprobante {
             return;
         }
 
-        String condIva = cliente.getCondicionIva();
-        if (tipo.contains(" A") && !"RI".equalsIgnoreCase(condIva)) {
-            errores.add("Comprobante tipo A requiere cliente con condición IVA 'RI' (Responsable Inscripto). Recibido: '" + condIva + "'");
-        }
-        if (tipo.contains(" B") && !"CF".equalsIgnoreCase(condIva)) {
-            errores.add("Comprobante tipo B requiere cliente con condición IVA 'CF' (Consumidor Final). Recibido: '" + condIva + "'");
-        }
-        if (tipo.contains(" C") && !"MO".equalsIgnoreCase(condIva)) {
-            errores.add("Comprobante tipo C requiere cliente con condición IVA 'MO' (Monotributista). Recibido: '" + condIva + "'");
-        }
     }
 
     // =========================================================================
@@ -224,7 +229,7 @@ public class ValidadorComprobante {
      *  4. Dígito verificador = (resto == 0) ? 0 : (resto == 1) ? 9 : 11 - resto
      *  5. Comparar con el 11° dígito del CUIT
      */
-    private boolean esCuitDigitoVerificadorValido(String cuit) {
+    public static boolean esCuitDigitoVerificadorValido(String cuit) {
         int suma = 0;
         for (int i = 0; i < 10; i++) {
             suma += Character.getNumericValue(cuit.charAt(i)) * PESOS_CUIT[i];
@@ -308,6 +313,7 @@ public class ValidadorComprobante {
         totalDecl = totalDecl.setScale(2, RoundingMode.HALF_UP);
 
         BigDecimal totalCalculado = neto.add(iva).add(percepcion).add(exentos)
+                .add(orCero(comprobante.getImpuestosInternos()))
                 .setScale(2, RoundingMode.HALF_UP);
 
         BigDecimal diferencia = totalDecl.subtract(totalCalculado).abs();
@@ -336,6 +342,86 @@ public class ValidadorComprobante {
      *
      * @throws FacturaValidationException si no cumple
      */
+    /**
+     * Reglas ARCA sobre el request ya construido, según clase de comprobante y datos del receptor.
+     *
+     * @throws FacturaValidationException si no cumple
+     */
+    public void validarReglasArca(ApiFacturaRequest request) {
+        List<String> errores = new ArrayList<>();
+        Integer cbteTipo = request.getCbteTipo();
+        boolean claseA = cbteTipo != null && CBTE_CLASE_A.contains(cbteTipo);
+        boolean claseB = cbteTipo != null && CBTE_CLASE_B.contains(cbteTipo);
+        boolean claseC = cbteTipo != null && CBTE_CLASE_C.contains(cbteTipo);
+        Integer docTipo = request.getDocTipo();
+        String docNro = request.getDocNro();
+        boolean docNroMayorACero = docNro != null && docNro.matches("\\d+") && new BigDecimal(docNro).signum() > 0;
+        BigDecimal impTotal = orCero(request.getImpTotal());
+
+        // Condición IVA del receptor según clase (RG 5616)
+        Integer condIva = request.getCondicionIvaReceptor();
+        if (condIva == null) {
+            errores.add("condicionIvaReceptor es obligatorio (RG 5616)");
+        } else if (claseA && !COND_IVA_CLASE_A.contains(condIva)) {
+            errores.add("Comprobante A: condicionIvaReceptor " + condIva + " inválida. Valores permitidos: " + COND_IVA_CLASE_A);
+        } else if (claseB && !COND_IVA_CLASE_B.contains(condIva)) {
+            errores.add("Comprobante B: condicionIvaReceptor " + condIva + " inválida. Valores permitidos: " + COND_IVA_CLASE_B);
+        }
+
+        // Identificación del receptor
+        if (docTipo != null && docTipo == 99 && !"0".equals(docNro)) {
+            errores.add("DocTipo 99 (sin identificar) requiere DocNro 0. Recibido: '" + docNro + "'");
+        }
+        if (claseB && impTotal.compareTo(MONTO_IDENTIFICACION_B) >= 0
+                && (docTipo == null || docTipo == 99 || !docNroMayorACero)) {
+            errores.add(String.format(
+                    "Comprobante B de $%.2f (igual o mayor a $10.000.000): el receptor debe estar identificado (DocTipo distinto a 99 y DocNro mayor a 0)",
+                    impTotal));
+        }
+        if (claseB && impTotal.compareTo(MONTO_IDENTIFICACION_B) < 0
+                && docTipo != null && docTipo != 99 && !docNroMayorACero) {
+            errores.add(String.format(
+                    "ARCA 10015: para comprobantes B menores a $10.000.000 con DocTipo %d (distinto a 99), DocNro debe ser mayor a 0 (DocNro recibido: '%s')",
+                    docTipo, docNro));
+        }
+
+        BigDecimal impNeto = orCero(request.getImpNeto()).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal impIva = orCero(request.getImpIVA()).setScale(2, RoundingMode.HALF_UP);
+        List<IvaDetalle> iva = request.getIva() != null ? request.getIva() : List.of();
+
+        // Comprobantes C: sin IVA discriminado ni operaciones exentas
+        if (claseC) {
+            if (impIva.signum() != 0) errores.add("Comprobante C: impIVA debe ser 0. Recibido: " + impIva);
+            if (!iva.isEmpty()) errores.add("Comprobante C: iva[] debe enviarse vacío");
+            if (orCero(request.getImpOpEx()).signum() != 0) {
+                errores.add("Comprobante C: impOpEx debe ser 0 (todo el importe va en impNeto). Recibido: " + request.getImpOpEx());
+            }
+        }
+
+        // Comprobantes A/B: iva[] obligatorio y consistente con impNeto / impIVA
+        if ((claseA || claseB) && impNeto.signum() > 0) {
+            if (iva.isEmpty()) {
+                errores.add("Comprobante A/B con impNeto mayor a 0: iva[] es obligatorio");
+            } else {
+                BigDecimal sumaBase = iva.stream().map(i -> orCero(i.getBaseImp()).setScale(2, RoundingMode.HALF_UP))
+                        .reduce(BigDecimal.ZERO.setScale(2), BigDecimal::add);
+                BigDecimal sumaImporte = iva.stream().map(i -> orCero(i.getImporte()).setScale(2, RoundingMode.HALF_UP))
+                        .reduce(BigDecimal.ZERO.setScale(2), BigDecimal::add);
+                if (sumaBase.compareTo(impNeto) != 0) {
+                    errores.add(String.format("La suma de iva[].baseImp (%.2f) no es igual a impNeto (%.2f)", sumaBase, impNeto));
+                }
+                if (sumaImporte.compareTo(impIva) != 0) {
+                    errores.add(String.format("La suma de iva[].importe (%.2f) no es igual a impIVA (%.2f)", sumaImporte, impIva));
+                }
+            }
+        }
+
+        if (!errores.isEmpty()) {
+            errores.forEach(log::warn);
+            throw new FacturaValidationException(errores);
+        }
+    }
+
     public void validarTributos(ApiFacturaRequest request) {
         List<String> errores = new ArrayList<>();
         BigDecimal impTrib = orCero(request.getImpTrib()).setScale(2, RoundingMode.HALF_UP);
@@ -399,6 +485,7 @@ public class ValidadorComprobante {
         BigDecimal sumaNeto     = BigDecimal.ZERO;
         BigDecimal sumaIva      = BigDecimal.ZERO;
         BigDecimal sumaTotal    = BigDecimal.ZERO;
+        BigDecimal sumaBonif    = BigDecimal.ZERO;
 
         for (int i = 0; i < detalle.size(); i++) {
             DetalleItem item = detalle.get(i);
@@ -411,31 +498,44 @@ public class ValidadorComprobante {
             Double alicuota      = item.getProducto().getAlicuota() != null ? item.getProducto().getAlicuota() : 0.0;
 
   //TODO CREO QUE NO DEBERIA MULTIPLICAR LA CANTIDAD --pero en pesable si ???
-            //BigDecimal subtotal   = precio.multiply(cantidad).setScale(4, RoundingMode.HALF_UP);
-            BigDecimal subtotal   = precio.setScale(4, RoundingMode.HALF_UP);
+            boolean pesable = articuloRepository.findActivoByCodInterno(Integer.valueOf(item.getProducto().getCodigo()))
+                    .map(a -> "S".equals(a.getPesable()))
+                    .orElse(false);
+            BigDecimal subtotal   = (pesable ? precio.multiply(cantidad) : precio).setScale(4, RoundingMode.HALF_UP);
+           // BigDecimal subtotal   = precio.setScale(4, RoundingMode.HALF_UP);
             BigDecimal descuento  = subtotal.multiply(bonifPct.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP))
                     .setScale(4, RoundingMode.HALF_UP);
             BigDecimal netoLinea  = subtotal.subtract(descuento);
             BigDecimal ivaLinea   = netoLinea.multiply(BigDecimal.valueOf(alicuota).divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP))
                     .setScale(4, RoundingMode.HALF_UP);
-            BigDecimal totalLinea = netoLinea.add(ivaLinea);
+            BigDecimal impInt     = orCero(item.getImpuestoInterno());
+            if (pesable) { //ver si esto hace falta
+                impInt = impInt.multiply(cantidad).setScale(4, RoundingMode.HALF_UP);
+            }
+            BigDecimal totalLinea = netoLinea.add(ivaLinea).add(impInt);
+            if (!pesable) {
+                totalLinea = totalLinea.multiply(cantidad);
+            }
 
-            log.info("Item {} — '{}': precio: {} x cantidad: {} = subtotal: {} | bonif%: {} (-{}) | neto: {} | iva({}%): {} | totalLinea: {}",
+
+            log.info("Item {} — '{}': precio: {} x cantidad: {} = subtotal: {} | bonif%: {} (-{}) | neto: {} | iva({}%): {} | impInt: {} | totalLinea: {}",
                     i + 1, item.getProducto().getCodigo(), precio, cantidad, subtotal,
-                    bonifPct, descuento, netoLinea, alicuota, ivaLinea, totalLinea);
+                    bonifPct, descuento, netoLinea, alicuota, ivaLinea, impInt, totalLinea);
 
             sumaSubtotal = sumaSubtotal.add(subtotal);
             sumaNeto     = sumaNeto.add(netoLinea);
             sumaIva      = sumaIva.add(ivaLinea);
             sumaTotal    = sumaTotal.add(totalLinea);
+            sumaBonif    = sumaBonif.add(pesable ? descuento : descuento.multiply(cantidad));
         }
         sumaTotal    = sumaTotal.add(percepcion);
 
-        log.info("Suma del detalle (ticket_items) — subtotal: {} | neto: {} | iva: {} | Percepcion: {} | totalDetalle: {}",
+        log.info("Suma del detalle (ticket_items) — subtotal: {} | neto: {} | iva: {} | Percepcion: {} | bonificaciones: {} | totalDetalle: {}",
                 sumaSubtotal.setScale(2, RoundingMode.HALF_UP),
                 sumaNeto.setScale(2, RoundingMode.HALF_UP),
                 sumaIva.setScale(2, RoundingMode.HALF_UP),
                 percepcion,
+                sumaBonif.setScale(2, RoundingMode.HALF_UP),
                 sumaTotal.setScale(2, RoundingMode.HALF_UP));
     }
 
@@ -452,6 +552,11 @@ public class ValidadorComprobante {
 
         BigDecimal totalPagos     = orCero(comprobante.getPagos().getTotal()).setScale(2, RoundingMode.HALF_UP);
         BigDecimal totalComprobante = orCero(comprobante.getTotal()).setScale(2, RoundingMode.HALF_UP);
+        String tipoNc = comprobante.getTipo() == null ? "" : comprobante.getTipo().toUpperCase().replace('_', ' ');
+        if (tipoNc.matches("NOTA (DE )?CREDITO [AB]")) {
+            totalPagos = totalPagos.abs();
+            totalComprobante = totalComprobante.abs();
+        }
         BigDecimal diferencia     = totalPagos.subtract(totalComprobante).abs();
 
         if (diferencia.compareTo(TOLERANCIA_TOTAL) > 0) {
@@ -462,7 +567,9 @@ public class ValidadorComprobante {
 
         // Verificar que no haya formas de pago con importe <= 0
         comprobante.getPagos().getFormasPago().forEach(fp -> {
-            if (fp.getImporte() == null || fp.getImporte().compareTo(BigDecimal.ZERO) <= 0) {
+            if (fp.getImporte() == null
+                    || (tipoNc.matches("NOTA (DE )?CREDITO [AB]") ? fp.getImporte().signum() == 0
+                                                                  : fp.getImporte().compareTo(BigDecimal.ZERO) <= 0)) {
                 errores.add("Forma de pago '" + fp.getDescripcion() + "': el importe debe ser mayor a cero");
             }
         });

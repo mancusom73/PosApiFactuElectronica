@@ -81,6 +81,9 @@ public class Evento {
 
     @Column(name = "PERCEPCION_DGI")
     private Double percepcionDgi;
+
+    @Column(name = "NRO_CAJA_DGI")
+    private Short nroCajaDgi;
 /*
     @OneToMany(
             mappedBy = "evento",

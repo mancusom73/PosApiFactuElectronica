@@ -24,6 +24,7 @@ import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -115,7 +116,7 @@ public class TicketFacturacionService {
         // Cargar cliente desde DBTPVIV usando codCliente del ticket
         // Si no se encuentra, se factura como Consumidor Final genérico (valores por defecto ARCA)
         ClienteEntity cliente = clienteRepository.findById(ticket.getCodCliente())
-                .orElseGet(() -> clienteGenerico(ticket.getCodCliente()));
+                .orElseGet(() -> clienteGenerico(ticket));
         //Ojo que hay que controlar ciertos montos para que si o si se identifique el cliente El límite de $10.000.000 para cualquier medio de pago
         ajustarTotalPorRedondeo(ticket);
         ticketRepository.save(ticket);
@@ -170,16 +171,34 @@ public class TicketFacturacionService {
      * Cliente por defecto usado cuando el ticket no tiene un cliente identificado
      * en DBTPVIV. Representa un Consumidor Final genérico según lo exigido por ARCA.
      */
-    private ClienteEntity clienteGenerico(Long codCliente) {
+    private ClienteEntity clienteGenerico(TicketEntity ticket) {
+        Long codCliente = ticket.getCodCliente();
+        if (ticket.getTipoComprobante() != null && ticket.getTipoComprobante().getDescripcionAfip().endsWith(" A")) {
+            String mensaje = String.format(
+                    "Cliente ID %d no encontrado en DBTPVIV: no se puede emitir %s a Consumidor Final genérico (los comprobantes A requieren un cliente identificado con CUIT)",
+                    codCliente, ticket.getTipoComprobante().getDescripcionAfip());
+            log.warn(mensaje);
+            marcarError(ticket, mensaje);
+            ticketRepository.save(ticket);
+            throw new FacturaValidationException(List.of(mensaje));
+        }
+        boolean sinIdentificar = codCliente != null && codCliente == 0L;
+        Optional<ClienteEntity> consumidorFinal = sinIdentificar ? Optional.empty()
+                : clienteRepository.findFirstByNombreIgnoreCaseAndCondIva("CONSUMIDOR FINAL", "5");
+        if (consumidorFinal.isPresent()) {
+            log.warn("Cliente ID {} no encontrado en DBTPVIV. Se factura con el cliente CONSUMIDOR FINAL (COD_CLIENTE {})",
+                    codCliente, consumidorFinal.get().getCodCliente());
+            return consumidorFinal.get();
+        }
         log.warn("Cliente ID {} no encontrado en DBTPVIV. Se factura como Consumidor Final genérico", codCliente);
         ClienteEntity cliente = new ClienteEntity();
         cliente.setCodCliente(codCliente);
-        cliente.setCodDocumento("D");
+        cliente.setCodDocumento(sinIdentificar ? "99" : "D");
         cliente.setNroDocumento("0");
         cliente.setNombre("Consumidor Final");
         cliente.setDomicilio("");
         cliente.setProvincia("13");
-        cliente.setCondIva("4");
+        cliente.setCondIva("5");
         return cliente;
     }
 

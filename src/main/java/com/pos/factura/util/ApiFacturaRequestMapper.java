@@ -33,6 +33,8 @@ public class ApiFacturaRequestMapper {
     /** Siempre "Percepción de IVA" — hoy el comprobante no discrimina el tipo de percepción */
     private static final int TRIBUTO_ID_PERCEPCION_IVA = 6;
     private static final String TRIBUTO_DESC_PERCEPCION_IVA = "Percepcion de IVA";
+    private static final int TRIBUTO_ID_IMP_INTERNOS = 4;
+    private static final String TRIBUTO_DESC_IMP_INTERNOS = "Impuestos Internos";
 
     public ApiFacturaRequest construir(Comprobante comp, Cliente cliente, EmisorConfig emisorConfig) {
         return ApiFacturaRequest.builder()
@@ -46,7 +48,7 @@ public class ApiFacturaRequestMapper {
                 .condicionIvaReceptor(condicionIvaReceptorDesde(cliente.getCondicionIva()))
                 .impNeto(orCero(comp.getNetoGravado()))
                 .impIVA(orCero(comp.getIvaTotal()))
-                .impTrib(orCero(comp.getPercepcion()))
+                .impTrib(orCero(comp.getPercepcion()).add(orCero(comp.getImpuestosInternos())))
                 .impOpEx(orCero(comp.getExentos()))
                 .impTotal(orCero(comp.getTotal()))
                 .monId(comp.getMoneda())
@@ -91,6 +93,15 @@ public class ApiFacturaRequestMapper {
                     : BigDecimal.ZERO;
             lista.add(new TributoDetalle(TRIBUTO_ID_PERCEPCION_IVA, TRIBUTO_DESC_PERCEPCION_IVA,
                     baseImp, alicuota, percepcion));
+        }
+        BigDecimal impInt = comp.getImpuestosInternos();
+        if (impInt != null && impInt.signum() > 0) {
+            BigDecimal baseImp = orCero(comp.getNetoGravado());
+            BigDecimal alicuota = baseImp.signum() > 0
+                    ? impInt.multiply(BigDecimal.valueOf(100)).divide(baseImp, 2, RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO;
+            lista.add(new TributoDetalle(TRIBUTO_ID_IMP_INTERNOS, TRIBUTO_DESC_IMP_INTERNOS,
+                    baseImp, alicuota, impInt));
         }
         return lista;
     }
@@ -151,9 +162,16 @@ public class ApiFacturaRequestMapper {
     private int condicionIvaReceptorDesde(String condicionIva) {
         if (condicionIva == null) throw new IllegalArgumentException("Condición IVA del cliente nula");
         switch (condicionIva.trim().toUpperCase()) {
-            case "RI": return 1;
-            case "CF": return 5;
-            case "MO": return 6;
+            case "RI":  return 1;
+            case "EX":  return 4;
+            case "CF":  return 5;
+            case "MO":  return 6;
+            case "NC":  return 7;
+            case "EXT": return 9;
+            case "LIB": return 10;
+            case "MS":  return 13;
+            case "NA":  return 15;
+            case "MTP": return 16;
             default:
                 throw new IllegalArgumentException("No hay código AFIP (condicionIvaReceptor) mapeado para: " + condicionIva);
         }

@@ -52,6 +52,9 @@ public class TicketItemEntity {
     @Column(name = "alicuota_iva", nullable = false, precision = 5, scale = 1)
     private BigDecimal alicuotaIva;
 
+    @Column(name = "impuesto_interno", nullable = false, precision = 12, scale = 4)
+    private BigDecimal impuestoInterno = BigDecimal.ZERO;
+
     /**
      * Descuento porcentual aplicado a este ítem: 0.00 a 100.00
      */

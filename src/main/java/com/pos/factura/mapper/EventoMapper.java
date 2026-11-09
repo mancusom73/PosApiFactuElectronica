@@ -60,16 +60,7 @@ public class EventoMapper {
      * el descuento en PRECIO_FIJO.
      */
     public Double obtenerPrecioFijoDescuento(Long cajaZ, Long idEvento, Integer codArt) {
-        try {
-            return evBPromoRepository
-                    .findIdGrupoByCajaZAndIdEventoAndCodArtAndBpromo(cajaZ, idEvento, codArt, (short) 1)
-                    .flatMap(idGrupo -> evBPromoRepository
-                            .findPrecioFijoByCajaZAndIdEventoAndIdGrupoAndBpromo(cajaZ, idEvento, idGrupo, (short) 101))
-                    .orElse(null);
-        } catch (javax.persistence.NonUniqueResultException
-                 | org.springframework.dao.IncorrectResultSizeDataAccessException e) {
-            return 0.0;
-        }
+        return evBPromoRepository.sumPrecioFijoDescuentoByCajaZAndIdEventoAndCodArt(cajaZ, idEvento, codArt);
     }
 
     /**
@@ -136,8 +127,12 @@ public class EventoMapper {
         if (cond == null) return "CF";
         switch (cond.trim()) {
             case "1": return "RI";
-            case "4": return "CF";
+            case "4": return "EX";
+            case "5": return "CF";
             case "6": return "MO";
+            case "7": return "NC";
+            case "8": return "LIB";
+            case "9": return "EXT";
             default:  return "CF";
         }
     }
@@ -390,11 +385,16 @@ public class EventoMapper {
                 if (ec.getIva2() != null) {
                     iva = iva.add(BigDecimal.valueOf(ec.getIva2()));
                 }
-                subtotalItemConDescuento = subtotalItemConDescuento.add(precioSinIva).add(iva);
+                BigDecimal cantidadLinea = ec.getCantidad() != null ? BigDecimal.valueOf(ec.getCantidad()) : BigDecimal.ONE;
+                subtotalItemConDescuento = subtotalItemConDescuento.add(precioSinIva.add(iva).abs().multiply(cantidadLinea));
             }
         }
 
         Map<String, TicketItemEntity> itemsPorClaveOrigen1 = new HashMap<>();
+        Map<String, BigDecimal> importePorClaveOrigen1 = new HashMap<>();
+        Map<TicketItemEntity, Double> precioFijoPorItem = new java.util.IdentityHashMap<>();
+        Map<TicketItemEntity, Double> perfilPorItem = new java.util.IdentityHashMap<>();
+        java.util.Set<Integer> articulosConPrecioFijo = new java.util.HashSet<>();
         for (EvCont ec : evCont) {
             if (ec.getOrigen() != null && ec.getOrigen() == (byte) 4) {
                 continue;
@@ -402,7 +402,7 @@ public class EventoMapper {
 
             // CANTIDAD: Float → BigDecimal
             BigDecimal cantidadEc = ec.getCantidad() != null
-                    ? BigDecimal.valueOf(ec.getCantidad()).setScale(2, java.math.RoundingMode.HALF_UP)
+                    ? BigDecimal.valueOf(ec.getCantidad()).setScale(3, java.math.RoundingMode.HALF_UP)
                     : BigDecimal.ONE;
 
             // PRECIO_UNITARIO → precioUnitarioSinIva (precio histórico de la venta, incluye exento)
@@ -410,19 +410,28 @@ public class EventoMapper {
                     ? BigDecimal.valueOf(ec.getImporteSinIva()) : BigDecimal.ZERO;
             BigDecimal exentoItem = ec.getExento() != null
                     ? BigDecimal.valueOf(ec.getExento()) : BigDecimal.ZERO;
+            BigDecimal impIntItem = ec.getImpInt() != null
+                    ? BigDecimal.valueOf(ec.getImpInt()) : BigDecimal.ZERO;
 
-            boolean esOrigen1 = ec.getOrigen() != null && ec.getOrigen() == (byte) 1;
+            Optional<ArticuloEntity> artOpt = ec.getCodArticulo() != null
+                    ? articuloRepository.findActivoByCodInterno(ec.getCodArticulo())
+                    : Optional.empty();
+            boolean pesable = artOpt.map(a -> "S".equals(a.getPesable())).orElse(false);
+
+            boolean esOrigen1 = ec.getOrigen() != null && ec.getOrigen() == (byte) 1 && !pesable;
             String claveItem = ec.getCodArticulo() + "|" + ec.getCodBarra();
+            // Las anulaciones traen cantidad y precio negativos: el signo lo da la cantidad
+            BigDecimal importeLinea = importeSinIvaItem.add(exentoItem).abs().multiply(cantidadEc);
             if (esOrigen1 && itemsPorClaveOrigen1.containsKey(claveItem)) {
+                // Precio promedio ponderado sobre los importes reales de cada línea agrupada
                 TicketItemEntity itemExistente = itemsPorClaveOrigen1.get(claveItem);
-                BigDecimal total = importeSinIvaItem.multiply( cantidadEc.abs())
-                        .add(exentoItem.multiply( cantidadEc.abs()));
-                itemExistente.setCantidad(itemExistente.getCantidad().add(cantidadEc));
-                /*itemExistente.setPrecioUnitarioSinIva(itemExistente.getPrecioUnitarioSinIva()
-                        .add(importeSinIvaItem).add(exentoItem).multiply(cantidadEc.abs())
-                        .setScale(2, java.math.RoundingMode.HALF_UP));*/
-                itemExistente.setPrecioUnitarioSinIva(itemExistente.getPrecioUnitarioSinIva()
-                        .add(total));
+                BigDecimal nuevaCantidad = itemExistente.getCantidad().add(cantidadEc);
+                BigDecimal importeAcumulado = importePorClaveOrigen1.merge(claveItem, importeLinea, BigDecimal::add);
+                if (nuevaCantidad.signum() != 0) {
+                    itemExistente.setPrecioUnitarioSinIva(
+                            importeAcumulado.divide(nuevaCantidad, 4, java.math.RoundingMode.HALF_UP));
+                }
+                itemExistente.setCantidad(nuevaCantidad);
                 continue;
             }
 
@@ -435,17 +444,17 @@ public class EventoMapper {
 
             item.setCantidad(cantidadEc);
 
-            item.setPrecioUnitarioSinIva(importeSinIvaItem.add(exentoItem).setScale(2, java.math.RoundingMode.HALF_UP));
+            item.setPrecioUnitarioSinIva(importeSinIvaItem.add(exentoItem).abs().setScale(4, java.math.RoundingMode.HALF_UP));
+            item.setImpuestoInterno(impIntItem.abs());
 
             if (esOrigen1) {
                 itemsPorClaveOrigen1.put(claveItem, item);
+                importePorClaveOrigen1.put(claveItem, importeLinea);
             }
 
             // Alícuota IVA desde el artículo en DBTPVIV
             double alicuota = 21.0; // default
             if (ec.getCodArticulo() != null) {
-                Optional<ArticuloEntity> artOpt =
-                        articuloRepository.findActivoByCodInterno(ec.getCodArticulo());
                 if (artOpt.isPresent()) {
                     alicuota = mapCodIvaAAlicuota(artOpt.get().getCodIva(),artOpt.get().getGravado() );
                 } else {
@@ -456,23 +465,21 @@ public class EventoMapper {
 
             // DESCUENTO → bonificacionPorcentaje (resuelto vía ev_bpromo, no viene en ev_cont)
             // ev_bpromo.PRECIO_FIJO es un monto en $, no un porcentaje: se convierte sobre el subtotal del ítem.
-        //    BigDecimal subtotalItem = item.getPrecioUnitarioSinIva().multiply(item.getCantidad());
-            BigDecimal subtotalItem = item.getPrecioUnitarioSinIva()
-                    .multiply(BigDecimal.ONE.add(item.getAlicuotaIva().divide(BigDecimal.valueOf(100), 4, java.math.RoundingMode.HALF_UP)));
-            Double precioFijoDescuento = ec.getCodArticulo() != null
+            // El % sobre PRECIO_FIJO se calcula después del loop, con la cantidad y precio de la línea ya agrupada
+            Double precioFijoDescuento = ec.getCodArticulo() != null && articulosConPrecioFijo.add(ec.getCodArticulo())
                     ? obtenerPrecioFijoDescuento(cajaZ, idEvento, ec.getCodArticulo())
                     : null;
-            item.setBonificacionPorcentaje(precioFijoDescuento != null && subtotalItem.signum() > 0
-                    ? BigDecimal.valueOf(precioFijoDescuento)
-                            .multiply(BigDecimal.valueOf(100))
-                            .divide(subtotalItem, 2, java.math.RoundingMode.HALF_UP)
-                    : BigDecimal.ZERO);
+            if (precioFijoDescuento != null) {
+                precioFijoPorItem.put(item, precioFijoDescuento);
+            }
+            item.setBonificacionPorcentaje(BigDecimal.ZERO);
             Double precioDescuentoPerfil = ec.getCodArticulo() != null
                     ? obtenerDescuentoPerfil(cajaZ, idEvento, ec.getCodArticulo(), subtotalItemConDescuento)
                     : null;
             if (precioDescuentoPerfil != null) {
+                perfilPorItem.put(item, precioDescuentoPerfil);
                 item.setBonificacionPorcentaje(item.getBonificacionPorcentaje()
-                        .add(BigDecimal.valueOf(precioDescuentoPerfil).multiply(BigDecimal.valueOf(100))));
+                        .add(BigDecimal.valueOf(precioDescuentoPerfil).multiply(BigDecimal.valueOf(100)).setScale(2, java.math.RoundingMode.HALF_UP)));
             }
 
 
@@ -483,6 +490,45 @@ public class EventoMapper {
             items.add(item);
         }
         items.removeIf(it -> it.getCantidad().abs().compareTo(BigDecimal.valueOf(0.02)) < 0);
+        BigDecimal cien = BigDecimal.valueOf(100);
+        BigDecimal descuentoObjetivo = BigDecimal.ZERO;
+        BigDecimal descuentoAplicado = BigDecimal.ZERO;
+        TicketItemEntity ultimoConDescuento = null;
+        for (TicketItemEntity item : items) {
+            Double precioFijo = precioFijoPorItem.get(item);
+            Double fraccionPerfil = perfilPorItem.get(item);
+            if (precioFijo == null && fraccionPerfil == null) {
+                continue;
+            }
+            BigDecimal factorIva = BigDecimal.ONE.add(item.getAlicuotaIva().divide(cien, 4, java.math.RoundingMode.HALF_UP));
+            BigDecimal subtotalLinea = item.getPrecioUnitarioSinIva().multiply(item.getCantidad().abs()).multiply(factorIva);
+            if (subtotalLinea.signum() <= 0) {
+                continue;
+            }
+            if (fraccionPerfil != null) {
+                BigDecimal pctPerfil = BigDecimal.valueOf(fraccionPerfil).multiply(cien).setScale(2, java.math.RoundingMode.HALF_UP);
+                descuentoObjetivo = descuentoObjetivo.add(subtotalLinea.multiply(BigDecimal.valueOf(fraccionPerfil)));
+                descuentoAplicado = descuentoAplicado.add(subtotalLinea.multiply(pctPerfil).divide(cien));
+            }
+            if (precioFijo != null) {
+                BigDecimal pct = BigDecimal.valueOf(precioFijo).multiply(cien).divide(subtotalLinea, 2, java.math.RoundingMode.HALF_UP);
+                item.setBonificacionPorcentaje(item.getBonificacionPorcentaje().add(pct));
+                descuentoObjetivo = descuentoObjetivo.add(BigDecimal.valueOf(precioFijo));
+                descuentoAplicado = descuentoAplicado.add(subtotalLinea.multiply(pct).divide(cien));
+            }
+            ultimoConDescuento = item;
+        }
+        // El % redondeado a 2 decimales no reproduce exacto el PRECIO_FIJO: la diferencia se absorbe en el precio del último ítem
+        if (ultimoConDescuento != null) {
+            BigDecimal diferencia = descuentoObjetivo.subtract(descuentoAplicado);
+            BigDecimal factorNeto = ultimoConDescuento.getCantidad().abs()
+                    .multiply(BigDecimal.ONE.subtract(ultimoConDescuento.getBonificacionPorcentaje().divide(cien)))
+                    .multiply(BigDecimal.ONE.add(ultimoConDescuento.getAlicuotaIva().divide(cien, 4, java.math.RoundingMode.HALF_UP)));
+            if (factorNeto.signum() > 0) {
+                ultimoConDescuento.setPrecioUnitarioSinIva(ultimoConDescuento.getPrecioUnitarioSinIva()
+                        .subtract(diferencia.divide(factorNeto, 4, java.math.RoundingMode.HALF_UP)));
+            }
+        }
         return items;
     }
 

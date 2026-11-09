@@ -158,6 +158,9 @@ public class FacturaCabeceraEntity {
     @Column(name = "afip_qr", length = 500)
     private String afipQr;
 
+    @Column(name = "modo_usado", length = 20)
+    private String modoUsado;
+
     @Column(name = "afip_codigo_barras", length = 100)
     private String afipCodigoBarras;
 
