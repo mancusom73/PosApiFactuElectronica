@@ -25,7 +25,7 @@ import java.util.Map;
  * Códigos AFIP: ver tablas cbte_tipo, doc_tipo, iva_alicuota, condicion_iva_cliente.
  */
 @Component
-public class ApiFacturaRequestMapper {
+public class ApiFacturaRequestMapper  {
 
     private static final DateTimeFormatter FMT_ENTRADA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter FMT_SALIDA = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -55,7 +55,7 @@ public class ApiFacturaRequestMapper {
                 .monCotiz(new BigDecimal(comp.getCotizacion()))
                 .iva(ivaDesde(comp))
                 .tributos(tributosDesde(comp))
-                .cbtesAsoc(cbtesAsocDesde(comp.getComprobantesAsociados()))
+                .cbtesAsoc(cbtesAsocDesde(comp, emisorConfig))
                 .build();
     }
 
@@ -110,16 +110,19 @@ public class ApiFacturaRequestMapper {
     // cbtesAsoc[]
     // =========================================================================
 
-    private List<CbteAsociado> cbtesAsocDesde(List<ComprobanteAsociado> asociados) {
+    private List<CbteAsociado> cbtesAsocDesde(Comprobante comp, EmisorConfig emisorConfig) {
         List<CbteAsociado> lista = new ArrayList<>();
-        if (asociados == null) return lista;
+        List<ComprobanteAsociado> asociados = comp.getComprobantesAsociados();
+        int cbteTipo = cbteTipoDesde(comp.getTipo());
+        if (asociados == null || (cbteTipo != 3 && cbteTipo != 8)) return lista;
 
         for (ComprobanteAsociado a : asociados) {
             CbteAsociado ca = new CbteAsociado();
-            ca.setTipo(cbteTipoDesde(a.getTipoComprobante()));
-            ca.setPtoVta(Integer.valueOf(a.getPuntoVenta()));
+            String tipo = a.getTipoComprobante().trim();
+            ca.setTipo(tipo.matches("\\d+") ? Integer.valueOf(tipo) : cbteTipoDesde(tipo));
             ca.setNro(Long.valueOf(a.getNumero()));
-            ca.setCuit(a.getCuit());
+            ca.setPtoVta(Integer.valueOf(a.getPuntoVenta()));
+            ca.setCuit(emisorConfig.getCuit());
             lista.add(ca);
         }
         return lista;

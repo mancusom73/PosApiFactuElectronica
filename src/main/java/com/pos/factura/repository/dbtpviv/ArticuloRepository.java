@@ -54,7 +54,11 @@ public interface ArticuloRepository extends JpaRepository<ArticuloEntity, Articu
     @Query("SELECT a FROM ArticuloEntity a " +
            "WHERE a.codInterno = :codInterno " +
            "AND a.habilitado = 'S'")
-    Optional<ArticuloEntity> findActivoByCodInterno(@Param("codInterno") Integer codInterno);
+    List<ArticuloEntity> findActivosByCodInterno(@Param("codInterno") Integer codInterno);
+
+    default Optional<ArticuloEntity> findActivoByCodInterno(Integer codInterno) {
+        return findActivosByCodInterno(codInterno).stream().findFirst();
+    }
 
     // ── Búsquedas adicionales ─────────────────────────────────────────────────
 

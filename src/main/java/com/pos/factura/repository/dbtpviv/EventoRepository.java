@@ -36,4 +36,6 @@ public interface EventoRepository
     );
 
     Optional<Evento> findTopByOrderByIdEventoDesc();
+
+    List<Evento> findByTipoEventoInOrderByCajaZAscIdEventoAsc(List<Byte> tiposEvento);
 }

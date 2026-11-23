@@ -301,6 +301,9 @@ public class EventoMapper {
         TipoEventoPOS tipoPos = TipoEventoPOS.fromCodigoODefault(
                 evento.getTipoEvento(), TipoEventoPOS.FACTURA_B);
         ticket.setTipoComprobante(mapTipoComprobanteEnum(tipoPos));
+        ticket.setTipoComprobanteAnt(evento.getTipoComprobanteAnt());
+        ticket.setNroBoletaAnterior(evento.getNroBoletaAnterior());
+        ticket.setNroCajaAnt(evento.getNroCajaAnt());
 
         // ── Cliente ───────────────────────────────────────────────────────────
         if (evento.getCodCliente() != null) {
@@ -375,7 +378,8 @@ public class EventoMapper {
             if (Objects.equals(ec.getCajaZ(), cajaZ)
                     && Objects.equals(ec.getIdEvento(), idEvento)
                     && !codArticulosEnPromo.contains(ec.getCodArticulo())
-                    && ec.getOrigen() != (byte) 4) {
+                    && ec.getOrigen() != (byte) 4
+                    && !esDescuentoGlobal(ec)) {
                 BigDecimal precioSinIva = ec.getImporteSinIva() != null
                         ? BigDecimal.valueOf(ec.getImporteSinIva() + ec.getExento()) : BigDecimal.ZERO;
                 BigDecimal iva = BigDecimal.ZERO;
@@ -390,13 +394,36 @@ public class EventoMapper {
             }
         }
 
+        // Cada anulación (cantidad negativa) se cancela contra la línea original del mismo artículo, cantidad y precio:
+        // ninguna de las dos se envía (los pesables no se agrupan y quedarían como ítem con cantidad negativa)
+        java.util.Set<EvCont> anuladas = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        for (EvCont anulacion : evCont) {
+            if (anulacion.getOrigen() == null || anulacion.getOrigen() != (byte) 1
+                    || anulacion.getCantidad() == null || anulacion.getCantidad() >= 0) {
+                continue;
+            }
+            evCont.stream()
+                    .filter(ec -> !anuladas.contains(ec)
+                            && Objects.equals(ec.getOrigen(), anulacion.getOrigen())
+                            && ec.getCantidad() != null && ec.getCantidad() > 0
+                            && Objects.equals(ec.getCodArticulo(), anulacion.getCodArticulo())
+                            && Objects.equals(ec.getCodBarra(), anulacion.getCodBarra())
+                            && Objects.equals(ec.getPrecioUnitario(), anulacion.getPrecioUnitario())
+                            && Math.abs(ec.getCantidad() + anulacion.getCantidad()) < 0.0005)
+                    .findFirst()
+                    .ifPresent(original -> {
+                        anuladas.add(original);
+                        anuladas.add(anulacion);
+                    });
+        }
+
         Map<String, TicketItemEntity> itemsPorClaveOrigen1 = new HashMap<>();
         Map<String, BigDecimal> importePorClaveOrigen1 = new HashMap<>();
         Map<TicketItemEntity, Double> precioFijoPorItem = new java.util.IdentityHashMap<>();
         Map<TicketItemEntity, Double> perfilPorItem = new java.util.IdentityHashMap<>();
         java.util.Set<Integer> articulosConPrecioFijo = new java.util.HashSet<>();
         for (EvCont ec : evCont) {
-            if (ec.getOrigen() != null && ec.getOrigen() == (byte) 4) {
+            if (ec.getOrigen() != null && ec.getOrigen() == (byte) 4 || esDescuentoGlobal(ec) || anuladas.contains(ec)) {
                 continue;
             }
 
@@ -454,7 +481,13 @@ public class EventoMapper {
 
             // Alícuota IVA desde el artículo en DBTPVIV
             double alicuota = 21.0; // default
-            if (ec.getCodArticulo() != null) {
+            double ivaEc = (ec.getIva1() != null ? ec.getIva1() : 0.0) + (ec.getIva2() != null ? ec.getIva2() : 0.0);
+            if (ec.getOrigen() != null && ec.getOrigen() == (byte) 5 && importeSinIvaItem.signum() != 0) {
+                // Recargos ORIGEN=5: la alícuota es la que usó el POS (IVA/IMPORTE_SIN_IVA), no la del artículo
+                double ratio = ivaEc / importeSinIvaItem.doubleValue() * 100;
+                alicuota = java.util.stream.DoubleStream.of(0.0, 10.5, 21.0)
+                        .boxed().min(java.util.Comparator.comparingDouble(a -> Math.abs(a - ratio))).get();
+            } else if (ec.getCodArticulo() != null) {
                 if (artOpt.isPresent()) {
                     alicuota = mapCodIvaAAlicuota(artOpt.get().getCodIva(),artOpt.get().getGravado() );
                 } else {
@@ -491,45 +524,160 @@ public class EventoMapper {
         }
         items.removeIf(it -> it.getCantidad().abs().compareTo(BigDecimal.valueOf(0.02)) < 0);
         BigDecimal cien = BigDecimal.valueOf(100);
-        BigDecimal descuentoObjetivo = BigDecimal.ZERO;
-        BigDecimal descuentoAplicado = BigDecimal.ZERO;
-        TicketItemEntity ultimoConDescuento = null;
+        // Descuentos ya prorrateados por el POS en las líneas ORIGEN=4 (promos PRECIO_FIJO + descuento del ticket),
+        // agrupados por alícuota: el descuento de perfil del grupo es lo que queda después de las promos por artículo
+        Map<Double, BigDecimal> descuentoOrigen4 = descuentoPorAlicuota(evCont, items, (byte) 4);
+        boolean usarOrigen4 = !descuentoOrigen4.isEmpty();
+        Map<Double, BigDecimal> subtotalPerfilPorAlicuota = new HashMap<>();
+        Map<Double, BigDecimal> precioFijoPorAlicuota = new HashMap<>();
+        if (usarOrigen4) {
+            for (TicketItemEntity item : items) {
+                BigDecimal subtotalLinea = subtotalConIva(item);
+                if (subtotalLinea.signum() <= 0) {
+                    continue;
+                }
+                Double alicuota = item.getAlicuotaIva().doubleValue();
+                Double fraccionPerfil = perfilPorItem.get(item);
+                if (fraccionPerfil != null && fraccionPerfil > 0) {
+                    subtotalPerfilPorAlicuota.merge(alicuota, subtotalLinea, BigDecimal::add);
+                }
+                if (precioFijoPorItem.containsKey(item)) {
+                    precioFijoPorAlicuota.merge(alicuota, BigDecimal.valueOf(precioFijoPorItem.get(item)), BigDecimal::add);
+                }
+            }
+        }
+        Map<Double, BigDecimal> descuentoObjetivo = new HashMap<>(descuentoOrigen4);
+        Map<Double, BigDecimal> descuentoAplicado = new HashMap<>();
+        Map<Double, TicketItemEntity> ultimoConDescuento = new HashMap<>();
         for (TicketItemEntity item : items) {
             Double precioFijo = precioFijoPorItem.get(item);
             Double fraccionPerfil = perfilPorItem.get(item);
+            if (usarOrigen4 && fraccionPerfil != null && fraccionPerfil <= 0) {
+                fraccionPerfil = null;
+            }
             if (precioFijo == null && fraccionPerfil == null) {
                 continue;
             }
-            BigDecimal factorIva = BigDecimal.ONE.add(item.getAlicuotaIva().divide(cien, 4, java.math.RoundingMode.HALF_UP));
-            BigDecimal subtotalLinea = item.getPrecioUnitarioSinIva().multiply(item.getCantidad().abs()).multiply(factorIva);
+            BigDecimal subtotalLinea = subtotalConIva(item);
             if (subtotalLinea.signum() <= 0) {
                 continue;
             }
+            Double alicuota = item.getAlicuotaIva().doubleValue();
+            Double clave = usarOrigen4 ? alicuota : null;
             if (fraccionPerfil != null) {
-                BigDecimal pctPerfil = BigDecimal.valueOf(fraccionPerfil).multiply(cien).setScale(2, java.math.RoundingMode.HALF_UP);
-                descuentoObjetivo = descuentoObjetivo.add(subtotalLinea.multiply(BigDecimal.valueOf(fraccionPerfil)));
-                descuentoAplicado = descuentoAplicado.add(subtotalLinea.multiply(pctPerfil).divide(cien));
+                BigDecimal pctPerfil;
+                if (usarOrigen4) {
+                    BigDecimal objetivoGrupo = descuentoOrigen4.getOrDefault(alicuota, BigDecimal.ZERO)
+                            .subtract(precioFijoPorAlicuota.getOrDefault(alicuota, BigDecimal.ZERO));
+                    pctPerfil = objetivoGrupo.max(BigDecimal.ZERO).multiply(cien)
+                            .divide(subtotalPerfilPorAlicuota.get(alicuota), 2, java.math.RoundingMode.HALF_UP);
+                    item.setBonificacionPorcentaje(pctPerfil);
+                } else {
+                    pctPerfil = BigDecimal.valueOf(fraccionPerfil).multiply(cien).setScale(2, java.math.RoundingMode.HALF_UP);
+                    descuentoObjetivo.merge(clave, subtotalLinea.multiply(BigDecimal.valueOf(fraccionPerfil)), BigDecimal::add);
+                }
+                descuentoAplicado.merge(clave, subtotalLinea.multiply(pctPerfil).divide(cien), BigDecimal::add);
             }
             if (precioFijo != null) {
                 BigDecimal pct = BigDecimal.valueOf(precioFijo).multiply(cien).divide(subtotalLinea, 2, java.math.RoundingMode.HALF_UP);
                 item.setBonificacionPorcentaje(item.getBonificacionPorcentaje().add(pct));
-                descuentoObjetivo = descuentoObjetivo.add(BigDecimal.valueOf(precioFijo));
-                descuentoAplicado = descuentoAplicado.add(subtotalLinea.multiply(pct).divide(cien));
+                if (!usarOrigen4) {
+                    descuentoObjetivo.merge(clave, BigDecimal.valueOf(precioFijo), BigDecimal::add);
+                }
+                descuentoAplicado.merge(clave, subtotalLinea.multiply(pct).divide(cien), BigDecimal::add);
             }
-            ultimoConDescuento = item;
+            ultimoConDescuento.put(clave, item);
         }
-        // El % redondeado a 2 decimales no reproduce exacto el PRECIO_FIJO: la diferencia se absorbe en el precio del último ítem
-        if (ultimoConDescuento != null) {
-            BigDecimal diferencia = descuentoObjetivo.subtract(descuentoAplicado);
-            BigDecimal factorNeto = ultimoConDescuento.getCantidad().abs()
-                    .multiply(BigDecimal.ONE.subtract(ultimoConDescuento.getBonificacionPorcentaje().divide(cien)))
-                    .multiply(BigDecimal.ONE.add(ultimoConDescuento.getAlicuotaIva().divide(cien, 4, java.math.RoundingMode.HALF_UP)));
+        // Descuento global del ticket (ORIGEN=5 negativo, ej. variación por medio de pago):
+        // se prorratea sobre todos los ítems de la alícuota con la que el POS registró el IVA
+        for (Map.Entry<Double, BigDecimal> global : descuentoPorAlicuota(evCont, items, (byte) 5).entrySet()) {
+            Double alicuota = global.getKey();
+            BigDecimal subtotalGrupo = BigDecimal.ZERO;
+            for (TicketItemEntity item : items) {
+                BigDecimal subtotalLinea = subtotalConIva(item);
+                if (alicuota.equals(item.getAlicuotaIva().doubleValue()) && subtotalLinea.signum() > 0) {
+                    subtotalGrupo = subtotalGrupo.add(subtotalLinea);
+                }
+            }
+            if (subtotalGrupo.signum() <= 0) {
+                log.warn("Descuento global de {} sin ítems con alícuota {}", global.getValue(), alicuota);
+                continue;
+            }
+            BigDecimal pct = global.getValue().multiply(cien).divide(subtotalGrupo, 2, java.math.RoundingMode.HALF_UP);
+            for (TicketItemEntity item : items) {
+                BigDecimal subtotalLinea = subtotalConIva(item);
+                if (alicuota.equals(item.getAlicuotaIva().doubleValue()) && subtotalLinea.signum() > 0) {
+                    item.setBonificacionPorcentaje(item.getBonificacionPorcentaje().add(pct));
+                    descuentoAplicado.merge(alicuota, subtotalLinea.multiply(pct).divide(cien), BigDecimal::add);
+                    ultimoConDescuento.put(alicuota, item);
+                }
+            }
+            descuentoObjetivo.merge(alicuota, global.getValue(), BigDecimal::add);
+        }
+        // El % redondeado a 2 decimales no reproduce exacto el descuento: la diferencia se absorbe en el precio
+        // del último ítem con descuento (por alícuota cuando se usa ORIGEN=4, para no mover importe entre grupos)
+        ultimoConDescuento.forEach((clave, ultimo) -> {
+            BigDecimal diferencia = descuentoObjetivo.getOrDefault(clave, BigDecimal.ZERO)
+                    .subtract(descuentoAplicado.getOrDefault(clave, BigDecimal.ZERO));
+            BigDecimal factorNeto = ultimo.getCantidad().abs()
+                    .multiply(BigDecimal.ONE.subtract(ultimo.getBonificacionPorcentaje().divide(cien)))
+                    .multiply(BigDecimal.ONE.add(ultimo.getAlicuotaIva().divide(cien, 4, java.math.RoundingMode.HALF_UP)));
             if (factorNeto.signum() > 0) {
-                ultimoConDescuento.setPrecioUnitarioSinIva(ultimoConDescuento.getPrecioUnitarioSinIva()
+                ultimo.setPrecioUnitarioSinIva(ultimo.getPrecioUnitarioSinIva()
                         .subtract(diferencia.divide(factorNeto, 4, java.math.RoundingMode.HALF_UP)));
             }
-        }
+        });
         return items;
+    }
+
+    private BigDecimal subtotalConIva(TicketItemEntity item) {
+        BigDecimal factorIva = BigDecimal.ONE.add(item.getAlicuotaIva().divide(BigDecimal.valueOf(100), 4, java.math.RoundingMode.HALF_UP));
+        return item.getPrecioUnitarioSinIva().multiply(item.getCantidad().abs()).multiply(factorIva);
+    }
+
+    /**
+     * Suma el descuento con IVA de las líneas ORIGEN=4 por alícuota. Las líneas con EXENTO van a alícuota 0;
+     * el resto se asigna a la alícuota de los ítems más cercana a IVA/IMPORTE_SIN_IVA (el importe puede incluir
+     * la parte de impuestos internos, por eso no da la alícuota exacta).
+     */
+    private static boolean esDescuentoGlobal(EvCont ec) {
+        double importe = (ec.getImporteSinIva() != null ? ec.getImporteSinIva() : 0.0)
+                + (ec.getExento() != null ? ec.getExento() : 0.0);
+        return ec.getOrigen() != null && ec.getOrigen() == (byte) 5 && importe < 0;
+    }
+
+    private Map<Double, BigDecimal> descuentoPorAlicuota(List<EvCont> evCont, List<TicketItemEntity> items, byte origen) {
+        java.util.Set<Double> alicuotasGravadas = new java.util.HashSet<>();
+        for (TicketItemEntity item : items) {
+            if (item.getAlicuotaIva().signum() > 0) {
+                alicuotasGravadas.add(item.getAlicuotaIva().doubleValue());
+            }
+        }
+        Map<Double, BigDecimal> descuento = new HashMap<>();
+        for (EvCont ec : evCont) {
+            if (ec.getOrigen() == null || ec.getOrigen() != origen || origen == (byte) 5 && !esDescuentoGlobal(ec)) {
+                continue;
+            }
+            double importe = ec.getImporteSinIva() != null ? ec.getImporteSinIva() : 0.0;
+            double exento = ec.getExento() != null ? ec.getExento() : 0.0;
+            double iva = (ec.getIva1() != null ? ec.getIva1() : 0.0) + (ec.getIva2() != null ? ec.getIva2() : 0.0);
+            // Las anulaciones traen cantidad -1 e importes con el signo invertido: el signo lo da el importe
+            double cantidad = ec.getCantidad() != null ? Math.abs(ec.getCantidad()) : 1.0;
+            double impInt = ec.getImpInt() != null ? ec.getImpInt() : 0.0;
+            Double alicuota;
+            if (exento != 0.0) {
+                alicuota = 0.0;
+            } else if (importe != 0.0 && !alicuotasGravadas.isEmpty()) {
+                double ratio = iva / importe * 100;
+                alicuota = alicuotasGravadas.stream()
+                        .min(java.util.Comparator.comparingDouble(a -> Math.abs(a - ratio))).get();
+            } else {
+                continue;
+            }
+            descuento.merge(alicuota, BigDecimal.valueOf(importe + exento + iva + impInt).multiply(BigDecimal.valueOf(cantidad)).negate(),
+                    BigDecimal::add);
+        }
+        return descuento;
     }
 
     /**
@@ -560,3 +708,5 @@ public class EventoMapper {
         }
     }
 }
+
+

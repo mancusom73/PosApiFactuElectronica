@@ -6,7 +6,10 @@ import com.pos.factura.config.ApiConfig;
 import com.pos.factura.dto.ApiFacturaConsultaResponse;
 import com.pos.factura.dto.ApiFacturaRequest;
 import com.pos.factura.dto.ApiFacturaResponse;
+import com.pos.factura.dto.ContadoresResponse;
+import com.pos.factura.dto.UltimoAutorizadoResponse;
 import com.pos.factura.exception.ApiComunicacionException;
+import com.pos.factura.repository.dbtpviv.FactuMemRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.*;
@@ -38,11 +41,14 @@ public class FacturaApiClient {
     private final RestTemplate restTemplate;
     private final ApiConfig apiConfig;
     private final ObjectMapper objectMapper;
+    private final FactuMemRepository factuMemRepository;
 
-    public FacturaApiClient(RestTemplate restTemplate, ApiConfig apiConfig, ObjectMapper objectMapper) {
+    public FacturaApiClient(RestTemplate restTemplate, ApiConfig apiConfig, ObjectMapper objectMapper,
+                            FactuMemRepository factuMemRepository) {
         this.restTemplate = restTemplate;
         this.apiConfig = apiConfig;
         this.objectMapper = objectMapper;
+        this.factuMemRepository = factuMemRepository;
     }
 
     /**
@@ -178,6 +184,7 @@ public class FacturaApiClient {
         ApiFacturaConsultaResponse ultima = null;
         Exception ultimoError = null;
         int intento = 0;
+        int transitorios = 0;
 
         while (true) {
             intento++;
@@ -193,14 +200,15 @@ public class FacturaApiClient {
                 if (ultima != null) {
                     log.info("Factura consultada (intento {}) — id: {}, estado: {}", intento, ultima.getId(), ultima.getEstado());
                     if ("Error transitorio".equalsIgnoreCase(ultima.getEstado())) {
-                        if (intento >= apiConfig.getMaxReintentos()) {
-                            log.warn("Factura {} sigue en 'Error transitorio' luego de {} intentos consecutivos", id, intento);
+                        transitorios++;
+                        if (transitorios >= apiConfig.getMaxReintentos()) {
+                            log.warn("Factura {} sigue en 'Error transitorio' luego de {} intentos consecutivos", id, transitorios);
                             return ultima;
                         }
                         esperar(apiConfig.getEsperaEntreReintentosMs());
                         continue;
                     }
-                    intento = 0;
+                    transitorios = 0;
                     boolean pendiente = ultima.getEstado() != null
                             && ESTADOS_PENDIENTES.contains(ultima.getEstado().toLowerCase());
                     if (!pendiente) {
@@ -233,6 +241,80 @@ public class FacturaApiClient {
         }
         log.warn("Factura {} no autorizada luego de {}ms, último estado: {}", id, apiConfig.getConsultaTimeoutMs(), ultima.getEstado());
         return ultima;
+    }
+
+    public UltimoAutorizadoResponse consultarUltimoAutorizado(Long ptoVta, Long cbteTipo) {
+        String url = apiConfig.getUrl() + "/puntos-venta/" + ptoVta + "/ultimo-autorizado?cbteTipo=" + cbteTipo;
+        log.info("Consultando último autorizado en la API externa: {}", url);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+        headers.set("X-Api-Key", apiConfig.getApikey());
+
+        try {
+            ResponseEntity<UltimoAutorizadoResponse> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    new HttpEntity<>(headers),
+                    UltimoAutorizadoResponse.class
+            );
+            log.info("JSON recibido de la API externa (último autorizado):\n{}", toJson(response.getBody()));
+            return response.getBody();
+        } catch (HttpStatusCodeException ex) {
+            log.error("Error HTTP {} consultando último autorizado: {}", ex.getStatusCode(), ex.getResponseBodyAsString());
+            throw crearExcepcion(ex, ex.getStatusCode().value());
+        } catch (ResourceAccessException ex) {
+            throw new ApiComunicacionException("Error de red consultando último autorizado: " + ex.getMessage(), ex);
+        }
+    }
+
+    public ContadoresResponse consultarContadores() {
+        String url = apiConfig.getUrl() + "/contadores";
+        log.info("Consultando contadores en la API externa: {}", url);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+        headers.set("X-Api-Key", apiConfig.getApikey());
+
+        try {
+            ResponseEntity<ContadoresResponse> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    new HttpEntity<>(headers),
+                    ContadoresResponse.class
+            );
+            log.info("JSON recibido de la API externa (contadores):\n{}", toJson(response.getBody()));
+            actualizarFactuMem(response.getBody());
+            return response.getBody();
+        } catch (HttpStatusCodeException ex) {
+            log.error("Error HTTP {} consultando contadores: {}", ex.getStatusCode(), ex.getResponseBodyAsString());
+            throw crearExcepcion(ex, ex.getStatusCode().value());
+        } catch (ResourceAccessException ex) {
+            throw new ApiComunicacionException("Error de red consultando contadores: " + ex.getMessage(), ex);
+        }
+    }
+
+    private void actualizarFactuMem(ContadoresResponse contadores) {
+        if (contadores == null || contadores.getContadores() == null) {
+            return;
+        }
+        for (ContadoresResponse.Contador c : contadores.getContadores()) {
+            if (!Boolean.FALSE.equals(c.getEsCaea()) || c.getUltimoNroArca() == null || c.getCbteTipo() == null) {
+                continue;
+            }
+            String descripcion;
+            switch (c.getCbteTipo().intValue()) {
+                case 1: descripcion = "NRO_FACTURA_A"; break;
+                case 6: descripcion = "NRO_FACTURA_B"; break;
+                case 3: descripcion = "NRO_NCREDITO_A"; break;
+                case 8: descripcion = "NRO_NCREDITO_B"; break;
+                default: continue;
+            }
+            factuMemRepository.findByDescripcion(descripcion).ifPresent(mem -> {
+                mem.setValor(String.valueOf(c.getUltimoNroArca()));
+                factuMemRepository.save(mem);
+            });
+        }
     }
 
     private String toJson(Object obj) {

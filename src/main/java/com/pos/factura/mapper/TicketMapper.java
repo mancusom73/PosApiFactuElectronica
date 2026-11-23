@@ -171,6 +171,14 @@ public class TicketMapper {
         if (ticket.getPagos() != null && !ticket.getPagos().isEmpty()) {
             comprobante.setPagos(mapPagos(ticket.getPagos()));
         }
+        if (ticket.getTipoComprobanteAnt() != null && ticket.getNroBoletaAnterior() != null
+                && ticket.getNroCajaAnt() != null) {
+            ComprobanteAsociado asociado = new ComprobanteAsociado();
+            asociado.setTipoComprobante(String.valueOf(ticket.getTipoComprobanteAnt()));
+            asociado.setPuntoVenta(String.valueOf(ticket.getNroCajaAnt()));
+            asociado.setNumero(String.valueOf(ticket.getNroBoletaAnterior()));
+            comprobante.setComprobantesAsociados(new ArrayList<>(List.of(asociado)));
+        }
         return comprobante;
     }
 

@@ -3,6 +3,7 @@ package com.pos.factura.service;
 import com.pos.factura.client.FacturaApiClient;
 import com.pos.factura.config.EmisorConfig;
 import com.pos.factura.dto.*;
+import com.pos.factura.exception.FacturaValidationException;
 import com.pos.factura.model.Comprobante;
 import com.pos.factura.model.Pagos;
 import com.pos.factura.util.ApiFacturaRequestMapper;
@@ -11,6 +12,8 @@ import com.pos.factura.util.ValidadorComprobante;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 /**
  * Orquesta el flujo completo de emisión de una factura electrónica:
@@ -88,8 +91,9 @@ public class FacturaService {
             calculador.ajustarTotalAPagos(comprobante);
         }
 
-        log.info("Totales calculados — Neto: {}, IVA: {}, Total: {}",
-                comprobante.getNetoGravado(), comprobante.getIvaTotal(), comprobante.getTotal());
+        log.info("Totales calculados — Neto: {}, IVA: {}, Exentos: {}, Imp. Internos: {}, Percepción IVA: {}, Total: {}",
+                comprobante.getNetoGravado(), comprobante.getIvaTotal(), comprobante.getExentos(),
+                comprobante.getImpuestosInternos(), comprobante.getPercepcion(), comprobante.getTotal());
 
         // ── Paso 3: Validar ────────────────────────────────────────────────────
         log.debug("Validando comprobante tipo '{}'", comprobante.getTipo());
@@ -108,6 +112,19 @@ public class FacturaService {
         } catch (Exception e) {
             // La persistencia previa no debe interrumpir el flujo de facturación
             log.error("Error persistiendo request pre-AFIP (se continúa igual): {}", e.getMessage());
+        }
+
+        Integer cbteTipo = apiRequest.getCbteTipo();
+        if ((cbteTipo == 3 || cbteTipo == 8)
+                && (apiRequest.getCbtesAsoc() == null || apiRequest.getCbtesAsoc().isEmpty())) {
+            String mensaje = String.format(
+                    "Nota de crédito (cbteTipo %d) sin comprobante asociado: faltan eventos.TIPO_COMPROBANTE_ANT, eventos.NRO_BOLETA_ANTERIOR y/o eventos.NRO_CAJA_ANT (cajaZ=%s, idEvento=%s)",
+                    cbteTipo, cajaZ, idEvento);
+            log.warn(mensaje);
+            if (cabeceraId != null) {
+                persistenciaService.marcarError(cabeceraId, mensaje);
+            }
+            throw new FacturaValidationException(List.of(mensaje));
         }
 
         // ── Paso 6: Llamar a la API externa ───────────────────────────────────

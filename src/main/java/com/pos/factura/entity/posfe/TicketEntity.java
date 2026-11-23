@@ -134,6 +134,15 @@ public class TicketEntity {
     @Column(name = "fecha_modificacion")
     private LocalDateTime fechaModificacion;
 
+    @Transient
+    private Integer tipoComprobanteAnt;
+
+    @Transient
+    private Long nroBoletaAnterior;
+
+    @Transient
+    private Integer nroCajaAnt;
+
     // --- Relaciones ---
 
     @OneToMany(mappedBy = "ticket", cascade = CascadeType.ALL, fetch = FetchType.LAZY)

@@ -26,7 +26,7 @@ class FacturaApiClientMockTest {
         apiConfig.setApikey("TU_APIKEY");
         apiConfig.setApitoken("TU_APITOKEN");
 
-        FacturaApiClient client = new FacturaApiClient(new RestTemplate(), apiConfig, new com.fasterxml.jackson.databind.ObjectMapper());
+        FacturaApiClient client = new FacturaApiClient(new RestTemplate(), apiConfig, new com.fasterxml.jackson.databind.ObjectMapper(), null);
 
         Producto producto = new Producto();
         producto.setDescripcion("Producto de prueba");

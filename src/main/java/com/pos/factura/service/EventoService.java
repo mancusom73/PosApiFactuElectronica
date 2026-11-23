@@ -63,6 +63,11 @@ public class EventoService {
         return ticketFacturacionService.facturar(ticketCabecera, idempotencyKey, ptoVta);
     }
     @Transactional("dbtpvivTransactionManager")
+    public List<Evento> buscarEventosAFacturar() {
+        return eventoRepository.findByTipoEventoInOrderByCajaZAscIdEventoAsc(List.of((byte) 16, (byte) 17));
+    }
+
+    @Transactional("dbtpvivTransactionManager")
     public List<EvCont> buscarEvCont(Long cajaZ,Long idEvento) {
         log.info("Iniciando la busqueda del ev_cont: {}");
         List<EvCont>  evCont= evcontRepository.findByCajaZAndIdEvento(cajaZ,idEvento);

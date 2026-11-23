@@ -10,15 +10,15 @@ import lombok.Data;
 public class CbteAsociado {
 
     /** Código AFIP del tipo de comprobante asociado (ver cbte_tipo) */
-    @JsonProperty("tipo")
+    @JsonProperty("tipoAsociado")
     private Integer tipo;
 
-    @JsonProperty("ptoVta")
+    @JsonProperty("ptoVtaAsociado")
     private Integer ptoVta;
 
-    @JsonProperty("nro")
+    @JsonProperty("nroAsociado")
     private Long nro;
 
-    @JsonProperty("cuit")
-    private Long cuit;
+    @JsonProperty("cuitAsociado")
+    private String cuit;
 }

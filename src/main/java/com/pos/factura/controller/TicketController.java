@@ -1,6 +1,9 @@
 package com.pos.factura.controller;
 
+import com.pos.factura.client.FacturaApiClient;
+import com.pos.factura.dto.ContadoresResponse;
 import com.pos.factura.dto.EventoResponse;
+import com.pos.factura.dto.UltimoAutorizadoResponse;
 import com.pos.factura.dto.FacturaResponse;
 import com.pos.factura.entity.dbtpviv.EvCont;
 import com.pos.factura.entity.dbtpviv.Evento;
@@ -11,7 +14,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.pos.factura.exception.FacturaValidationException;
+
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 
 /**
@@ -27,10 +34,13 @@ public class TicketController {
 
     private final TicketFacturacionService ticketFacturacionService;
     private final EventoService eventoService;
+    private final FacturaApiClient facturaApiClient;
 
-    public TicketController(TicketFacturacionService ticketFacturacionService, EventoService eventoService) {
+    public TicketController(TicketFacturacionService ticketFacturacionService, EventoService eventoService,
+                            FacturaApiClient facturaApiClient) {
         this.ticketFacturacionService = ticketFacturacionService;
         this.eventoService = eventoService;
+        this.facturaApiClient = facturaApiClient;
     }
 
     /**
@@ -107,6 +117,51 @@ public class TicketController {
     }
 
     /**
+     * POST /api/v1/tickets/eventos/facturar-lote?ptoVta=12
+     *
+     * Envía uno a uno los eventos TIPO_EVENTO 16 y 17 ordenados por CAJA_Z, ID_EVENTO.
+     * Se detiene en el primer evento que no obtenga CAE.
+     */
+    @PostMapping("/eventos/facturar-lote")
+    public ResponseEntity<Map<String, Object>> facturarLote(@RequestParam Long ptoVta) {
+        List<Evento> eventos = eventoService.buscarEventosAFacturar();
+        log.info("Facturación por lote: {} eventos a procesar", eventos.size());
+
+        Map<String, Object> resultado = new LinkedHashMap<>();
+        resultado.put("total", eventos.size());
+        int enviados = 0;
+
+        for (Evento evento : eventos) {
+            Long hora = evento.getHora() != null ? evento.getHora().longValue() : 0L;
+            String error;
+            FacturaResponse response = null;
+            try {
+                response = eventoService.buscarEvento(evento.getCajaZ(), evento.getIdEvento(), hora, ptoVta);
+                if (response.isExitoso() && response.getCae() != null) {
+                    enviados++;
+                    log.info("Lote {}/{} — evento {} OK, CAE {}", enviados, eventos.size(), evento.getIdEvento(), response.getCae());
+                    continue;
+                }
+                error = response.getErrores() != null ? String.join(" | ", response.getErrores()) : response.getMensaje();
+            } catch (Exception e) {
+                error = e instanceof FacturaValidationException
+                        ? String.join(" | ", ((FacturaValidationException) e).getErrores())
+                        : e.getMessage();
+            }
+            log.error("Lote detenido en evento cajaZ={} idEvento={}: {}", evento.getCajaZ(), evento.getIdEvento(), error);
+            resultado.put("enviados", enviados);
+            resultado.put("cajaZError", evento.getCajaZ());
+            resultado.put("idEventoError", evento.getIdEvento());
+            resultado.put("error", error);
+            resultado.put("respuesta", response);
+            return ResponseEntity.unprocessableEntity().body(resultado);
+        }
+
+        resultado.put("enviados", enviados);
+        return ResponseEntity.ok(resultado);
+    }
+
+    /**
      * POST /api/v1/tickets/pendientes/facturar
      *
      * Procesa todos los tickets en estado PENDIENTE.
@@ -117,6 +172,26 @@ public class TicketController {
         log.info("Procesando tickets pendientes");
         List<FacturaResponse> resultados = ticketFacturacionService.facturarPendientes();
         return ResponseEntity.ok(resultados);
+    }
+
+    /**
+     * GET /api/v1/tickets/puntos-venta/ultimo-autorizado?ptoVta=12&cbteTipo=6
+     */
+    @GetMapping("/puntos-venta/ultimo-autorizado")
+    public ResponseEntity<UltimoAutorizadoResponse> ultimoAutorizado(
+            @RequestParam Long ptoVta,
+            @RequestParam Long cbteTipo) {
+        UltimoAutorizadoResponse response = facturaApiClient.consultarUltimoAutorizado(ptoVta, cbteTipo);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * GET /api/v1/tickets/contadores
+     */
+    @GetMapping("/contadores")
+    public ResponseEntity<ContadoresResponse> contadores() {
+        ContadoresResponse response = facturaApiClient.consultarContadores();
+        return ResponseEntity.ok(response);
     }
 
     /**

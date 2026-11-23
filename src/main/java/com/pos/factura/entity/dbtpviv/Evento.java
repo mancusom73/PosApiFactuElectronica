@@ -84,6 +84,15 @@ public class Evento {
 
     @Column(name = "NRO_CAJA_DGI")
     private Short nroCajaDgi;
+
+    @Column(name = "TIPO_COMPROBANTE_ANT")
+    private Integer tipoComprobanteAnt;
+
+    @Column(name = "NRO_BOLETA_ANTERIOR")
+    private Long nroBoletaAnterior;
+
+    @Column(name = "NRO_CAJA_ANT")
+    private Integer nroCajaAnt;
 /*
     @OneToMany(
             mappedBy = "evento",
