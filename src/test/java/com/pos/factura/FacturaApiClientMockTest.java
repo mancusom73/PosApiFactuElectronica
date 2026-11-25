@@ -23,7 +23,6 @@ class FacturaApiClientMockTest {
         ApiConfig apiConfig = new ApiConfig();
         apiConfig.setUrl("https://prisma.free.beeceptor.com");
         apiConfig.setUsertoken("TU_USERTOKEN");
-        apiConfig.setApikey("TU_APIKEY");
         apiConfig.setApitoken("TU_APITOKEN");
 
         FacturaApiClient client = new FacturaApiClient(new RestTemplate(), apiConfig, new com.fasterxml.jackson.databind.ObjectMapper(), null);
@@ -67,7 +66,7 @@ class FacturaApiClientMockTest {
 
         ApiFacturaRequest request = new ApiFacturaRequestMapper().construir(comprobante, cliente, emisorConfig);
 
-        ApiFacturaResponse response = client.emitirFactura(request, null);
+        ApiFacturaResponse response = client.emitirFactura(request, null, "TU_APIKEY");
 
         System.out.println("Respuesta mock: " + response);
         assertNotNull(response);

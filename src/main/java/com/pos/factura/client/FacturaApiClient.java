@@ -58,7 +58,7 @@ public class FacturaApiClient {
      * @return Respuesta del proveedor con CAE, PDF, QR
      * @throws ApiComunicacionException si falla la comunicación
      */
-    public ApiFacturaResponse emitirFactura(ApiFacturaRequest request, String idempotencyKey) {
+    public ApiFacturaResponse emitirFactura(ApiFacturaRequest request, String idempotencyKey, String apiKey) {
         String url = apiConfig.getUrl() + "/facturas";
 
         log.info("Enviando comprobante cbteTipo={} ptoVta={} a la API externa: {}",
@@ -67,7 +67,7 @@ public class FacturaApiClient {
         if (idempotencyKey == null) {
             idempotencyKey = java.util.UUID.randomUUID().toString();
         }
-        HttpHeaders headers = buildHeaders(idempotencyKey);
+        HttpHeaders headers = buildHeaders(idempotencyKey, apiKey);
         HttpEntity<ApiFacturaRequest> entity = new HttpEntity<>(request, headers);
         log.info("JSON enviado a la API externa:\n{}", toJson(request));
 
@@ -172,13 +172,13 @@ public class FacturaApiClient {
         return self.substring(self.lastIndexOf('/') + 1);
     }
 
-    public ApiFacturaConsultaResponse consultarFactura(String id) {
+    public ApiFacturaConsultaResponse consultarFactura(String id, String apiKey) {
         String url = apiConfig.getUrl() + "/facturas/" + id;
         log.info("Consultando factura en la API externa: {}", url);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-        headers.set("X-Api-Key", apiConfig.getApikey());
+        headers.set("X-Api-Key", apiKey);
 
         long limite = System.currentTimeMillis() + apiConfig.getConsultaTimeoutMs();
         ApiFacturaConsultaResponse ultima = null;
@@ -243,13 +243,13 @@ public class FacturaApiClient {
         return ultima;
     }
 
-    public UltimoAutorizadoResponse consultarUltimoAutorizado(Long ptoVta, Long cbteTipo) {
+    public UltimoAutorizadoResponse consultarUltimoAutorizado(Long ptoVta, Long cbteTipo, String apiKey) {
         String url = apiConfig.getUrl() + "/puntos-venta/" + ptoVta + "/ultimo-autorizado?cbteTipo=" + cbteTipo;
         log.info("Consultando último autorizado en la API externa: {}", url);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-        headers.set("X-Api-Key", apiConfig.getApikey());
+        headers.set("X-Api-Key", apiKey);
 
         try {
             ResponseEntity<UltimoAutorizadoResponse> response = restTemplate.exchange(
@@ -268,13 +268,13 @@ public class FacturaApiClient {
         }
     }
 
-    public ContadoresResponse consultarContadores() {
+    public ContadoresResponse consultarContadores(String apiKey) {
         String url = apiConfig.getUrl() + "/contadores";
         log.info("Consultando contadores en la API externa: {}", url);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-        headers.set("X-Api-Key", apiConfig.getApikey());
+        headers.set("X-Api-Key", apiKey);
 
         try {
             ResponseEntity<ContadoresResponse> response = restTemplate.exchange(
@@ -333,11 +333,11 @@ public class FacturaApiClient {
         }
     }
 
-    private HttpHeaders buildHeaders(String idempotencyKey) {
+    private HttpHeaders buildHeaders(String idempotencyKey, String apiKey) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(new MediaType(MediaType.APPLICATION_JSON, StandardCharsets.UTF_8));
         headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-        headers.set("X-Api-Key", apiConfig.getApikey());
+        headers.set("X-Api-Key", apiKey);
         headers.set("Idempotency-Key", idempotencyKey);
         return headers;
     }

@@ -6,6 +6,7 @@ import com.pos.factura.dto.*;
 import com.pos.factura.exception.FacturaValidationException;
 import com.pos.factura.model.Comprobante;
 import com.pos.factura.model.Pagos;
+import com.pos.factura.repository.dbtpviv.CajaRepository;
 import com.pos.factura.util.ApiFacturaRequestMapper;
 import com.pos.factura.util.CalculadorComprobante;
 import com.pos.factura.util.ValidadorComprobante;
@@ -38,13 +39,16 @@ public class FacturaService {
     private final FacturaApiClient apiClient;
     private final EmisorConfig emisorConfig;
     private final FacturaPersistenciaService persistenciaService;
+    private final CajaRepository cajaRepository;
 
     public FacturaService(CalculadorComprobante calculador,
                           ValidadorComprobante validador,
                           ApiFacturaRequestMapper requestMapper,
                           FacturaApiClient apiClient,
                           EmisorConfig emisorConfig,
-                          FacturaPersistenciaService persistenciaService) {
+                          FacturaPersistenciaService persistenciaService,
+                          CajaRepository cajaRepository) {
+        this.cajaRepository      = cajaRepository;
         this.calculador          = calculador;
         this.validador           = validador;
         this.requestMapper       = requestMapper;
@@ -128,9 +132,11 @@ public class FacturaService {
         }
 
         // ── Paso 6: Llamar a la API externa ───────────────────────────────────
+        String apiKey;
         ApiFacturaResponse apiResponse;
         try {
-            apiResponse = apiClient.emitirFactura(apiRequest, idempotencyKey);
+            apiKey = cajaRepository.obtenerXapikey(cajaZ, idEvento);
+            apiResponse = apiClient.emitirFactura(apiRequest, idempotencyKey, apiKey);
         } catch (Exception e) {
             // Error de comunicación: marcar en DB y propagar
             if (cabeceraId != null) {
@@ -142,7 +148,7 @@ public class FacturaService {
         ApiFacturaConsultaResponse consulta = null;
         if (apiResponse.isExitoso()) {
             try {
-                consulta = apiClient.consultarFactura(FacturaApiClient.extraerIdDeSelf(apiResponse));
+                consulta = apiClient.consultarFactura(FacturaApiClient.extraerIdDeSelf(apiResponse), apiKey);
             } catch (Exception e) {
                 log.error("Error consultando factura {} (fue encolada igual): {}", apiResponse.getId(), e.getMessage());
             }

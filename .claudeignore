@@ -1,0 +1,32 @@
+# Maven - Salidas de compilación y empaquetado
+**/target/
+**/*.jar
+**/*.war
+**/*.ear
+**/*.class
+
+# Logs y trazas de Spring Boot / Servidores
+**/*.log
+**/logs/
+**/logback*.xml
+**/log4j*.properties
+
+# Entornos de desarrollo e IDEs (Metadatos pesados)
+**/.idea/
+**/*.iml
+**/.classpath
+**/.project
+**/.settings/
+**/.factorypath
+**/.vscode/
+
+# Archivos temporales y del sistema
+**/.DS_Store
+**/Thumbs.db
+**/*.tmp
+**/*.bak
+
+# Documentación autogenerada de la API (Si aplica)
+**/target/generated-sources/
+**/asciidoc/
+**/swagger-ui/

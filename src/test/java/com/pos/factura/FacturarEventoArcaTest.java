@@ -60,7 +60,7 @@ class FacturarEventoArcaTest {
         ApiFacturaResponse respuestaMock = new ApiFacturaResponse();
         respuestaMock.setId("TEST-202804-48");
         respuestaMock.setEstado("Encolada");
-        when(apiClient.emitirFactura(any(ApiFacturaRequest.class), anyString())).thenReturn(respuestaMock);
+        when(apiClient.emitirFactura(any(ApiFacturaRequest.class), anyString(), any())).thenReturn(respuestaMock);
 
         mockMvc.perform(post("/api/v1/tickets/facturar")
                         .param("cajaZ", "202804")
@@ -70,7 +70,7 @@ class FacturarEventoArcaTest {
                 .andExpect(status().isOk());
 
         ArgumentCaptor<ApiFacturaRequest> captor = ArgumentCaptor.forClass(ApiFacturaRequest.class);
-        verify(apiClient).emitirFactura(captor.capture(), anyString());
+        verify(apiClient).emitirFactura(captor.capture(), anyString(), any());
 
         String json = objectMapper.writeValueAsString(captor.getValue());
         System.out.println("JSON enviado: " + json);
@@ -137,7 +137,7 @@ class FacturarEventoArcaTest {
         ApiFacturaResponse respuestaMock = new ApiFacturaResponse();
         respuestaMock.setId("TEST-602825-11");
         respuestaMock.setEstado("Encolada");
-        when(apiClient.emitirFactura(any(ApiFacturaRequest.class), anyString())).thenReturn(respuestaMock);
+        when(apiClient.emitirFactura(any(ApiFacturaRequest.class), anyString(), any())).thenReturn(respuestaMock);
 
         mockMvc.perform(post("/api/v1/tickets/facturar")
                         .param("cajaZ", "602825")
@@ -147,7 +147,7 @@ class FacturarEventoArcaTest {
                 .andExpect(status().isOk());
 
         ArgumentCaptor<ApiFacturaRequest> captor = ArgumentCaptor.forClass(ApiFacturaRequest.class);
-        verify(apiClient).emitirFactura(captor.capture(), anyString());
+        verify(apiClient).emitirFactura(captor.capture(), anyString(), any());
 
         String json = objectMapper.writeValueAsString(captor.getValue());
         System.out.println("JSON enviado: " + json);
@@ -214,7 +214,7 @@ class FacturarEventoArcaTest {
         ApiFacturaResponse respuestaMock = new ApiFacturaResponse();
         respuestaMock.setId("TEST-1502844-74");
         respuestaMock.setEstado("Encolada");
-        when(apiClient.emitirFactura(any(ApiFacturaRequest.class), anyString())).thenReturn(respuestaMock);
+        when(apiClient.emitirFactura(any(ApiFacturaRequest.class), anyString(), any())).thenReturn(respuestaMock);
 
         mockMvc.perform(post("/api/v1/tickets/facturar")
                         .param("cajaZ", "1502844")
@@ -224,7 +224,7 @@ class FacturarEventoArcaTest {
                 .andExpect(status().isOk());
 
         ArgumentCaptor<ApiFacturaRequest> captor = ArgumentCaptor.forClass(ApiFacturaRequest.class);
-        verify(apiClient).emitirFactura(captor.capture(), anyString());
+        verify(apiClient).emitirFactura(captor.capture(), anyString(), any());
 
         String json = objectMapper.writeValueAsString(captor.getValue());
         System.out.println("JSON enviado: " + json);
@@ -290,7 +290,7 @@ class FacturarEventoArcaTest {
         ApiFacturaResponse respuestaMock = new ApiFacturaResponse();
         respuestaMock.setId("TEST-1502844-156");
         respuestaMock.setEstado("Encolada");
-        when(apiClient.emitirFactura(any(ApiFacturaRequest.class), anyString())).thenReturn(respuestaMock);
+        when(apiClient.emitirFactura(any(ApiFacturaRequest.class), anyString(), any())).thenReturn(respuestaMock);
 
         mockMvc.perform(post("/api/v1/tickets/facturar")
                         .param("cajaZ", "1502844")
@@ -300,7 +300,7 @@ class FacturarEventoArcaTest {
                 .andExpect(status().isOk());
 
         ArgumentCaptor<ApiFacturaRequest> captor = ArgumentCaptor.forClass(ApiFacturaRequest.class);
-        verify(apiClient).emitirFactura(captor.capture(), anyString());
+        verify(apiClient).emitirFactura(captor.capture(), anyString(), any());
 
         String json = objectMapper.writeValueAsString(captor.getValue());
         System.out.println("JSON enviado: " + json);
@@ -366,7 +366,7 @@ class FacturarEventoArcaTest {
         ApiFacturaResponse respuestaMock = new ApiFacturaResponse();
         respuestaMock.setId("TEST-1502844-162");
         respuestaMock.setEstado("Encolada");
-        when(apiClient.emitirFactura(any(ApiFacturaRequest.class), anyString())).thenReturn(respuestaMock);
+        when(apiClient.emitirFactura(any(ApiFacturaRequest.class), anyString(), any())).thenReturn(respuestaMock);
 
         mockMvc.perform(post("/api/v1/tickets/facturar")
                         .param("cajaZ", "1502844")
@@ -376,7 +376,7 @@ class FacturarEventoArcaTest {
                 .andExpect(status().isOk());
 
         ArgumentCaptor<ApiFacturaRequest> captor = ArgumentCaptor.forClass(ApiFacturaRequest.class);
-        verify(apiClient).emitirFactura(captor.capture(), anyString());
+        verify(apiClient).emitirFactura(captor.capture(), anyString(), any());
 
         String json = objectMapper.writeValueAsString(captor.getValue());
         System.out.println("JSON enviado: " + json);
@@ -443,7 +443,7 @@ class FacturarEventoArcaTest {
         ApiFacturaResponse respuestaMock = new ApiFacturaResponse();
         respuestaMock.setId("TEST-1502830-47");
         respuestaMock.setEstado("Encolada");
-        when(apiClient.emitirFactura(any(ApiFacturaRequest.class), anyString())).thenReturn(respuestaMock);
+        when(apiClient.emitirFactura(any(ApiFacturaRequest.class), anyString(), any())).thenReturn(respuestaMock);
 
         mockMvc.perform(post("/api/v1/tickets/facturar")
                         .param("cajaZ", "1502830")
@@ -453,7 +453,7 @@ class FacturarEventoArcaTest {
                 .andExpect(status().isOk());
 
         ArgumentCaptor<ApiFacturaRequest> captor = ArgumentCaptor.forClass(ApiFacturaRequest.class);
-        verify(apiClient).emitirFactura(captor.capture(), anyString());
+        verify(apiClient).emitirFactura(captor.capture(), anyString(), any());
 
         String json = objectMapper.writeValueAsString(captor.getValue());
         System.out.println("JSON enviado: " + json);
@@ -520,7 +520,7 @@ class FacturarEventoArcaTest {
         ApiFacturaResponse respuestaMock = new ApiFacturaResponse();
         respuestaMock.setId("TEST-1502830-138");
         respuestaMock.setEstado("Encolada");
-        when(apiClient.emitirFactura(any(ApiFacturaRequest.class), anyString())).thenReturn(respuestaMock);
+        when(apiClient.emitirFactura(any(ApiFacturaRequest.class), anyString(), any())).thenReturn(respuestaMock);
 
         mockMvc.perform(post("/api/v1/tickets/facturar")
                         .param("cajaZ", "1502830")
@@ -530,7 +530,7 @@ class FacturarEventoArcaTest {
                 .andExpect(status().isOk());
 
         ArgumentCaptor<ApiFacturaRequest> captor = ArgumentCaptor.forClass(ApiFacturaRequest.class);
-        verify(apiClient).emitirFactura(captor.capture(), anyString());
+        verify(apiClient).emitirFactura(captor.capture(), anyString(), any());
 
         String json = objectMapper.writeValueAsString(captor.getValue());
         System.out.println("JSON enviado: " + json);
@@ -597,7 +597,7 @@ class FacturarEventoArcaTest {
         ApiFacturaResponse respuestaMock = new ApiFacturaResponse();
         respuestaMock.setId("TEST-100201-164");
         respuestaMock.setEstado("Encolada");
-        when(apiClient.emitirFactura(any(ApiFacturaRequest.class), anyString())).thenReturn(respuestaMock);
+        when(apiClient.emitirFactura(any(ApiFacturaRequest.class), anyString(), any())).thenReturn(respuestaMock);
 
         mockMvc.perform(post("/api/v1/tickets/facturar")
                         .param("cajaZ", "100201")
@@ -607,7 +607,7 @@ class FacturarEventoArcaTest {
                 .andExpect(status().isOk());
 
         ArgumentCaptor<ApiFacturaRequest> captor = ArgumentCaptor.forClass(ApiFacturaRequest.class);
-        verify(apiClient).emitirFactura(captor.capture(), anyString());
+        verify(apiClient).emitirFactura(captor.capture(), anyString(), any());
 
         String json = objectMapper.writeValueAsString(captor.getValue());
         System.out.println("JSON enviado: " + json);
@@ -673,7 +673,7 @@ class FacturarEventoArcaTest {
         ApiFacturaResponse respuestaMock = new ApiFacturaResponse();
         respuestaMock.setId("TEST-100201-317");
         respuestaMock.setEstado("Encolada");
-        when(apiClient.emitirFactura(any(ApiFacturaRequest.class), anyString())).thenReturn(respuestaMock);
+        when(apiClient.emitirFactura(any(ApiFacturaRequest.class), anyString(), any())).thenReturn(respuestaMock);
 
         mockMvc.perform(post("/api/v1/tickets/facturar")
                         .param("cajaZ", "100201")
@@ -683,7 +683,7 @@ class FacturarEventoArcaTest {
                 .andExpect(status().isOk());
 
         ArgumentCaptor<ApiFacturaRequest> captor = ArgumentCaptor.forClass(ApiFacturaRequest.class);
-        verify(apiClient).emitirFactura(captor.capture(), anyString());
+        verify(apiClient).emitirFactura(captor.capture(), anyString(), any());
 
         String json = objectMapper.writeValueAsString(captor.getValue());
         System.out.println("JSON enviado: " + json);
@@ -749,7 +749,7 @@ class FacturarEventoArcaTest {
         ApiFacturaResponse respuestaMock = new ApiFacturaResponse();
         respuestaMock.setId("TEST-100201-192");
         respuestaMock.setEstado("Encolada");
-        when(apiClient.emitirFactura(any(ApiFacturaRequest.class), anyString())).thenReturn(respuestaMock);
+        when(apiClient.emitirFactura(any(ApiFacturaRequest.class), anyString(), any())).thenReturn(respuestaMock);
 
         mockMvc.perform(post("/api/v1/tickets/facturar")
                         .param("cajaZ", "100201")
@@ -759,7 +759,7 @@ class FacturarEventoArcaTest {
                 .andExpect(status().isOk());
 
         ArgumentCaptor<ApiFacturaRequest> captor = ArgumentCaptor.forClass(ApiFacturaRequest.class);
-        verify(apiClient).emitirFactura(captor.capture(), anyString());
+        verify(apiClient).emitirFactura(captor.capture(), anyString(), any());
 
         String json = objectMapper.writeValueAsString(captor.getValue());
         System.out.println("JSON enviado: " + json);

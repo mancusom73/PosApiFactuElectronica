@@ -10,7 +10,6 @@ import lombok.Data;
 public class ApiConfig {
     private String url;
     private String usertoken;
-    private String apikey;
     private String apitoken;
     private int connectTimeoutMs = 5000;
     private int readTimeoutMs = 15000;

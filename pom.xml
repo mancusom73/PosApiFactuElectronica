@@ -13,7 +13,7 @@
 
     <groupId>com.pos</groupId>
     <artifactId>factura-electronica</artifactId>
-    <version>1.0.20</version>
+    <version>1.0.21</version>
     <name>pos-factura-electronica</name>
     <description>POS - API REST Factura Electronica Argentina</description>
 
@@ -77,6 +77,7 @@
     </dependencies>
 
     <build>
+        <finalName>factura-electronica</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

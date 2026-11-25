@@ -1,0 +1,13 @@
+Desde el menú: abre la ventana Maven (View → Tool Windows → Maven, o el ícono "m" a la derecha). Ve a factura-electronica → Lifecycle, haz doble click en clean y luego en package. 
+También puedes seleccionar los dos con Ctrl y darle a Run.                                                                  
+                                                                                                                                                                                                                                    
+  Con comando: en la ventana Maven, pulsa el botón "Execute Maven Goal" (el ícono "m" de la barra) y escribe mvn clean package. En la Terminal de IntelliJ no funciona escribir mvn directo, porque no está en el PATH y tu         
+  JAVA_HOME apunta a Java 8. Ahí tienes que usar:                                                                                                                                                                                   
+                                                                                                                                                                                                                                    
+  set JAVA_HOME=C:\Program Files\Java\jdk-11.0.1                                                                                                                                                                                    
+  "C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2024.3\plugins\maven\lib\maven3\bin\mvn" clean package      
+
+
+
+quedó generado en C:\work-Felectronica\PosApiFactuElectronica\target\factura-electronica.jar                                                                                                           
+                                                                                                                         

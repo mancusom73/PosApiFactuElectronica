@@ -7,6 +7,7 @@ import com.pos.factura.dto.UltimoAutorizadoResponse;
 import com.pos.factura.dto.FacturaResponse;
 import com.pos.factura.entity.dbtpviv.EvCont;
 import com.pos.factura.entity.dbtpviv.Evento;
+import com.pos.factura.repository.dbtpviv.CajaRepository;
 import com.pos.factura.service.TicketFacturacionService;
 import com.pos.factura.service.EventoService;
 import org.slf4j.Logger;
@@ -35,12 +36,14 @@ public class TicketController {
     private final TicketFacturacionService ticketFacturacionService;
     private final EventoService eventoService;
     private final FacturaApiClient facturaApiClient;
+    private final CajaRepository cajaRepository;
 
     public TicketController(TicketFacturacionService ticketFacturacionService, EventoService eventoService,
-                            FacturaApiClient facturaApiClient) {
+                            FacturaApiClient facturaApiClient, CajaRepository cajaRepository) {
         this.ticketFacturacionService = ticketFacturacionService;
         this.eventoService = eventoService;
         this.facturaApiClient = facturaApiClient;
+        this.cajaRepository = cajaRepository;
     }
 
     /**
@@ -175,22 +178,26 @@ public class TicketController {
     }
 
     /**
-     * GET /api/v1/tickets/puntos-venta/ultimo-autorizado?ptoVta=12&cbteTipo=6
+     * GET /api/v1/tickets/puntos-venta/ultimo-autorizado?ptoVta=12&cbteTipo=6&cajaZ=1&idEvento=1
      */
     @GetMapping("/puntos-venta/ultimo-autorizado")
     public ResponseEntity<UltimoAutorizadoResponse> ultimoAutorizado(
             @RequestParam Long ptoVta,
-            @RequestParam Long cbteTipo) {
-        UltimoAutorizadoResponse response = facturaApiClient.consultarUltimoAutorizado(ptoVta, cbteTipo);
+            @RequestParam Long cbteTipo,
+            @RequestParam Long cajaZ,
+            @RequestParam Long idEvento) {
+        String apiKey = cajaRepository.obtenerXapikey(cajaZ, idEvento);
+        UltimoAutorizadoResponse response = facturaApiClient.consultarUltimoAutorizado(ptoVta, cbteTipo, apiKey);
         return ResponseEntity.ok(response);
     }
 
     /**
-     * GET /api/v1/tickets/contadores
+     * GET /api/v1/tickets/contadores?cajaZ=1&idEvento=1
      */
     @GetMapping("/contadores")
-    public ResponseEntity<ContadoresResponse> contadores() {
-        ContadoresResponse response = facturaApiClient.consultarContadores();
+    public ResponseEntity<ContadoresResponse> contadores(@RequestParam Long cajaZ, @RequestParam Long idEvento) {
+        String apiKey = cajaRepository.obtenerXapikey(cajaZ, idEvento);
+        ContadoresResponse response = facturaApiClient.consultarContadores(apiKey);
         return ResponseEntity.ok(response);
     }
 
